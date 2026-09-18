@@ -1,31 +1,31 @@
-ID,Name,Lat,Lon,Type,Weight
-1,Farmgate,23.7561,90.3872,Intersection,5
-2,Bashundhara City Mall,23.7511,90.3906,Mall,5
-3,Jamuna Future Park,23.8111,90.4247,Mall,5
-4,Centrepoint Uttara,23.8525,90.4062,Mall,4
-5,Gulshan-1 Circle,23.7809,90.4160,Commercial,5
-6,Gulshan-2 Circle,23.7925,90.4155,Commercial,5
-7,Mirpur-10 Circle,23.8065,90.3686,Intersection,5
-8,Jatrabari Intersection,23.7104,90.4331,Intersection,4
-9,Dhaka University (TSC),23.7322,90.3944,University,3
-10,BUET,23.7267,90.3927,University,3
-11,North South University,23.8153,90.4256,University,3
-12,Uttara Sector 7 Junction,23.8709,90.3993,Residential,3
-13,Motijheel Commercial Area,23.7331,90.4172,Commercial,5
-14,Mohakhali Bus Terminal,23.7789,90.4048,TransportHub,5
-15,Dhanmondi 27 (Rifles Square),23.7461,90.3742,Commercial,4
-16,Kawran Bazar,23.7509,90.3927,Commercial,5
-17,Panthapath Intersection,23.7508,90.3874,Intersection,4
-18,Shahbagh Intersection,23.7383,90.3958,Intersection,4
-19,Banani Junction,23.7936,90.4043,Commercial,4
-20,Baridhara DOHS,23.8017,90.4225,Residential,3
-21,Square Hospital,23.7509,90.3831,Hospital,3
-22,United Hospital Gulshan,23.7943,90.4147,Hospital,3
-23,Dhaka Medical College Hospital,23.7256,90.3971,Hospital,3
-24,Evercare Hospital Bashundhara,23.7935,90.4288,Hospital,3
-25,Hazrat Shahjalal Intl Airport Area,23.8433,90.3978,TransportHub,4
-26,Sayedabad Bus Terminal,23.7233,90.4267,TransportHub,4
-27,Gabtoli Bus Terminal,23.7797,90.3486,TransportHub,4
-28,Kamalapur Railway Station,23.7332,90.4264,TransportHub,4
-29,Mohammadpur Town Hall,23.7628,90.3589,Commercial,3
-30,Rampura Bridge Intersection,23.7597,90.4258,Intersection,3
+ID,Name,Lat,Lon,Type,Weight_Car,Weight_Bike,PopDensity,LandCost
+1,Farmgate,23.7561,90.3872,Intersection,4,5,5,5
+2,Bashundhara City Mall,23.7511,90.3906,Mall,5,3,4,5
+3,Jamuna Future Park,23.8111,90.4247,Mall,5,3,3,4
+4,Centrepoint Uttara,23.8525,90.4062,Mall,4,3,3,4
+5,Gulshan-1 Circle,23.7809,90.4160,Commercial,5,2,4,5
+6,Gulshan-2 Circle,23.7925,90.4155,Commercial,5,2,4,5
+7,Mirpur-10 Circle,23.8065,90.3686,Intersection,3,5,5,3
+8,Jatrabari Intersection,23.7104,90.4331,Intersection,2,5,5,2
+9,Dhaka University (TSC),23.7322,90.3944,University,2,5,5,2
+10,BUET,23.7267,90.3927,University,2,4,4,2
+11,North South University,23.8153,90.4256,University,4,3,3,3
+12,Uttara Sector 7 Junction,23.8709,90.3993,Residential,3,3,4,2
+13,Motijheel Commercial Area,23.7331,90.4172,Commercial,5,3,5,5
+14,Mohakhali Bus Terminal,23.7789,90.4048,TransportHub,3,5,5,3
+15,Dhanmondi 27 (Rifles Square),23.7461,90.3742,Commercial,4,3,4,4
+16,Kawran Bazar,23.7509,90.3927,Commercial,4,4,5,4
+17,Panthapath Intersection,23.7508,90.3874,Intersection,4,4,4,4
+18,Shahbagh Intersection,23.7383,90.3958,Intersection,3,4,4,3
+19,Banani Junction,23.7936,90.4043,Commercial,5,2,4,5
+20,Baridhara DOHS,23.8017,90.4225,Residential,4,2,3,4
+21,Square Hospital,23.7509,90.3831,Hospital,4,2,3,4
+22,United Hospital Gulshan,23.7943,90.4147,Hospital,4,2,3,4
+23,Dhaka Medical College Hospital,23.7256,90.3971,Hospital,2,4,5,2
+24,Evercare Hospital Bashundhara,23.7935,90.4288,Hospital,4,2,3,4
+25,Hazrat Shahjalal Intl Airport Area,23.8433,90.3978,TransportHub,4,3,2,3
+26,Sayedabad Bus Terminal,23.7233,90.4267,TransportHub,2,5,5,2
+27,Gabtoli Bus Terminal,23.7797,90.3486,TransportHub,2,5,4,2
+28,Kamalapur Railway Station,23.7332,90.4264,TransportHub,3,5,5,3
+29,Mohammadpur Town Hall,23.7628,90.3589,Commercial,3,4,4,3
+30,Rampura Bridge Intersection,23.7597,90.4258,Intersection,3,4,4,3
