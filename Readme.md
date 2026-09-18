@@ -72,6 +72,27 @@ ID,Name,Lat,Lon,Type,Weight_Car,Weight_Bike,PopDensity,LandCost
 All numeric values must be finite. Demand and population scores should use
 the same scale for every city.
 
+### Dhaka candidate expansion
+
+The Dhaka dataset includes 22 additional candidate reference locations
+(IDs 31-52), increasing the candidate set from 30 to 52. Coordinates were
+researched from OpenStreetMap/Nominatim and Overpass references. The added
+`Weight_Car`, `Weight_Bike`, `PopDensity`, and `LandCost` values are
+transparent planning estimates on the same 1-10 scale as the original
+prototype data; they are not measured traffic, registration, census, or
+property-price observations.
+
+Source evidence for the added locations includes:
+
+- [Dhaka candidate location research](https://nominatim.openstreetmap.org/)
+- [OpenStreetMap Overpass API](https://overpass-api.de/)
+
+Several candidates form spatial clusters and should not automatically be
+treated as independent construction projects. Examples include Uttara,
+Mirpur metro stations, Agargaon, Gulshan, Badda, New Market/Dhanmondi, and
+the airport/railway area. Validate land availability, grid capacity, parking,
+access, and actual demand before treating the estimates as investment data.
+
 ## City settings
 
 `settings.csv` controls each city:
@@ -132,16 +153,43 @@ cost estimates if using real currency.
 
 ## Road-network distances
 
+### Using a local Bangladesh road shapefile
+
+Place the MATLAB-readable road shapefile at:
+
+```text
+geodata/maps/bangladesh_roads.shp
+```
+
+Keep its companion `.dbf`, `.shx`, and `.prj` files in the same folder. When
+the shapefile exists, `main.m` reads the local road polylines, builds a local
+undirected graph, computes shortest-path driving distances, and plots the road
+network without online map or routing requests. This requires MATLAB Mapping
+Toolbox.
+
+See [geodata/maps/README.txt](geodata/maps/README.txt) for the expected local files.
+
 For a city named `<city>`, the program uses:
 
 ```text
-data/<city>_road_distances.csv
+geodata/road_distances/<city>_road_distances.csv
 ```
+
+Each locally computed distance matrix also has a metadata sidecar:
+
+```text
+geodata/road_distances/<city>_road_distances.csv.meta.mat
+```
+
+The sidecar stores candidate IDs and coordinates. The cache is checked before
+the shapefile is opened and is reused only when those values still match the
+current city CSV, preventing an old matrix from being applied to reordered or
+changed candidate data.
 
 For Dhaka:
 
 ```text
-data/dhaka_road_distances.csv
+geodata/road_distances/dhaka_road_distances.csv
 ```
 
 The file must be an `n × n` distance matrix in kilometres, with rows and
@@ -149,13 +197,21 @@ columns in the same order as the city CSV.
 
 `src/distMatrix.m` works as follows:
 
-1. Loads and validates the cached matrix if it exists.
-2. Otherwise requests driving distances from OSRM.
-3. Saves the downloaded matrix for future runs.
-4. Uses straight-line Haversine distance if the download fails.
+1. Requires the local road shapefile.
+2. Builds a road graph from each shapefile polyline.
+3. Snaps candidate sites to the nearest road vertex.
+4. Computes shortest-path distances locally.
+5. Saves and validates the resulting city distance matrix.
 
-The fallback allows the project to run without internet access, but cached
-road distances are preferred for more realistic results.
+No online road search or straight-line fallback is used. If the local road
+shapefile is missing or disconnected, the program stops with a clear error.
+The clipped road overlay used in each city's PNG map is also cached under
+`results/<city>/local_roads_overlay.mat` so later runs do not reread the full
+shapefile. Optimization maps use the local road overlay rather than online
+street tiles to avoid basemap lag. The distance engine uses shortest paths
+through the clipped local road graph between the nearest road nodes; it does
+not sum arbitrary road segments.
+instead of silently changing the distance model.
 
 ## Optimization method
 
@@ -193,9 +249,13 @@ For each city, files are saved in `results/<city>/`:
 | `selected_stations.csv` | Selected sites, charger types, and costs |
 | `selected_stations.txt` | Human-readable summary |
 | `coverage_map.png` | Candidate and selected locations |
-| `sensitivity_p.png` | Coverage versus station count |
-| `sensitivity_budget.png` | Coverage versus budget |
-| `sensitivity_R.png` | Coverage versus service radius |
+| `sensitivity_combined.png` | Single colored plot comparing station count, budget, and service-radius sensitivity |
+
+The root `results/all_cities_summary.csv` contains one row per processed city,
+including candidate count, selected station count, demand coverage, budget
+usage, and Level 2/DC Fast station counts. Sensitivity ranges are derived
+from each city's candidate count, configured station limit, service radius,
+and observed distance matrix rather than fixed global values.
 
 The selected-stations CSV includes:
 
@@ -234,7 +294,9 @@ Install or activate MATLAB Optimization Toolbox.
 
 ### Road-distance download fails
 
-Check internet access. The program will use straight-line distance instead.
+The project no longer downloads road distances. Check that
+`geodata/maps/bangladesh_roads.shp` and its companion files are present and that
+MATLAB Mapping Toolbox is installed.
 
 ### The map fails
 

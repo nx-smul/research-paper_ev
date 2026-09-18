@@ -1,4 +1,4 @@
-function runCityOptimization(dataFile, outDir, params, roadDistanceFile, costProfile)
+function summary = runCityOptimization(dataFile, outDir, params, roadDistanceFile, costProfile, localRoadGraphFile)
 % RUNCITYOPTIMIZATION Runs the full EV charging siting pipeline for one city
 
     if nargin < 4
@@ -8,6 +8,9 @@ function runCityOptimization(dataFile, outDir, params, roadDistanceFile, costPro
         costProfile.level2 = [4, 1, 1];
         costProfile.dcFast = [12, 8, 4];
     end
+    if nargin < 6
+        localRoadGraphFile = '';
+    end
 
     if ~exist(outDir, 'dir'); mkdir(outDir); end
 
@@ -16,7 +19,8 @@ function runCityOptimization(dataFile, outDir, params, roadDistanceFile, costPro
     data = assignChargerType(data, costProfile);
 
     %% 2. Distance matrix
-    D = distMatrix(data.Lat, data.Lon, roadDistanceFile);
+    D = distMatrix(data.Lat, data.Lon, roadDistanceFile, data.ID, ...
+        localRoadGraphFile, params.R);
 
     %% 3. Combine factors into one demand score
     h = computeDemand(data, params.w);
@@ -24,7 +28,7 @@ function runCityOptimization(dataFile, outDir, params, roadDistanceFile, costPro
     %% 4. Optimize
     W = coverageWeights(D, params.R);
     fprintf('\n>> Finding the best station locations...\n');
-    [idx, x, u] = mclp(W, h, params.p, data.AdjustedCost, params.budget);
+    [idx, ~, u] = mclp(W, h, params.p, data.AdjustedCost, params.budget);
 
     %% Build selected-stations table
     selected = data(idx, {'Name','Lat','Lon','Type','Weight_Car','Weight_Bike', ...
@@ -84,7 +88,7 @@ function runCityOptimization(dataFile, outDir, params, roadDistanceFile, costPro
     fprintf('\nSaved: %s\n', txtFile);
 
     %% 5. Plot map
-    plotMap(data, idx, params.R, outDir, true);
+    plotMap(data, idx, params.R, outDir, true, localRoadGraphFile);
     drawnow;
 
     %% 6. Save results CSV (now includes charger type + adjusted cost)
@@ -93,16 +97,13 @@ function runCityOptimization(dataFile, outDir, params, roadDistanceFile, costPro
 
     %% 7a. How coverage changes as you add more stations
     fprintf('\n>> Testing how coverage improves as more stations are added...\n');
-    pRange = 1:15;
+    nCandidates = height(data);
+    pRange = unique([1:min(15, nCandidates), min(max(1, params.p), nCandidates)]);
     covP = zeros(size(pRange));
     for k = 1:length(pRange)
         [~, ~, uk] = mclp(W, h, pRange(k), data.AdjustedCost, Inf);
         covP(k) = 100 * sum(h.*uk) / sum(h);
     end
-    plotSensitivity(pRange, covP, 'Number of Stations', ...
-        sprintf('More Stations = More Coverage - %s', cityName), ...
-        fullfile(outDir, 'sensitivity_p.png'));
-
     %% 7b. How coverage changes with budget
     fprintf('\n>> Testing how coverage improves as budget increases...\n');
     maxBudget = sum(data.AdjustedCost);
@@ -112,22 +113,20 @@ function runCityOptimization(dataFile, outDir, params, roadDistanceFile, costPro
         [~, ~, uk] = mclp(W, h, params.p, data.AdjustedCost, budgetRange(k));
         covBudget(k) = 100 * sum(h.*uk) / sum(h);
     end
-    plotSensitivity(budgetRange, covBudget, 'Budget Available', ...
-        sprintf('Coverage vs Budget - %s', cityName), ...
-        fullfile(outDir, 'sensitivity_budget.png'));
-
     %% 7c. How coverage changes with service radius
     fprintf('\n>> Testing how coverage changes with a bigger service radius...\n');
-    Rrange = 0.5:0.5:5;
+    maxDistance = max(D(:));
+    radiusUpperBound = max(params.R * 2, min(maxDistance, params.R * 4));
+    Rrange = unique(linspace(max(0.5, params.R / 2), ...
+        max(params.R, radiusUpperBound), 10));
     covR = zeros(size(Rrange));
     for k = 1:length(Rrange)
         Wk = coverageWeights(D, Rrange(k));
         [~, ~, uk] = mclp(Wk, h, params.p, data.AdjustedCost, params.budget);
         covR(k) = 100 * sum(h.*uk) / sum(h);
     end
-    plotSensitivity(Rrange, covR, 'Service Radius (km)', ...
-        sprintf('Coverage vs Service Radius - %s', cityName), ...
-        fullfile(outDir, 'sensitivity_R.png'));
+    plotCombinedSensitivity(pRange, covP, budgetRange, covBudget, ...
+        Rrange, covR, cityName, fullfile(outDir, 'sensitivity_combined.png'));
 
     %% Print summary tables
     fprintf('\n--- Coverage as Stations Increase ---\n');
@@ -144,6 +143,19 @@ function runCityOptimization(dataFile, outDir, params, roadDistanceFile, costPro
     for k = 1:length(Rrange)
         fprintf('  %4.1f km radius  ->  %.1f%% of demand covered\n', Rrange(k), covR(k));
     end
+
+    summary = struct( ...
+        'City', string(cityName), ...
+        'CandidateSites', nCandidates, ...
+        'SelectedStations', height(selected), ...
+        'ConfiguredStationLimit', params.p, ...
+        'ServiceRadiusKm', params.R, ...
+        'BudgetLimit', params.budget, ...
+        'BudgetUsed', sum(selected.AdjustedCost), ...
+        'DemandCoveredPercent', 100 * sum(h .* u) / sum(h), ...
+        'LandCostUsed', sum(selected.LandCost), ...
+        'Level2Stations', sum(selected.ChargerType == "Level 2"), ...
+        'DCFastStations', sum(selected.ChargerType == "DC Fast"));
 end
 
 function s = budgetLabel(b)
@@ -154,15 +166,36 @@ function s = budgetLabel(b)
     end
 end
 
-function plotSensitivity(xVals, yVals, xLabelStr, titleStr, outFile)
-    figure('Name', titleStr);
-    plot(xVals, yVals, '-o', 'LineWidth', 2, 'MarkerFaceColor', 'b');
-    xlabel(xLabelStr);
-    ylabel('Percent of Demand Covered (%)');
-    title(titleStr);
+function plotCombinedSensitivity(pVals, covP, budgetVals, covBudget, ...
+        radiusVals, covRadius, cityName, outFile)
+    figure('Name', sprintf('Sensitivity Analysis - %s', cityName));
+    tiledlayout(3, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+
+    nexttile;
+    plot(pVals, covP, '-o', 'LineWidth', 2, ...
+        'Color', [0.00 0.45 0.74], 'MarkerFaceColor', [0.00 0.45 0.74]);
+    xlabel('Maximum Number of Stations');
+    ylabel('Demand Covered (%)');
+    title('Effect of Station Limit');
     grid on;
-    ax = gca;
-    ax.Toolbar.Visible = 'off';
+
+    nexttile;
+    plot(budgetVals, covBudget, '-s', 'LineWidth', 2, ...
+        'Color', [0.85 0.33 0.10], 'MarkerFaceColor', [0.85 0.33 0.10]);
+    xlabel('Available Budget');
+    ylabel('Demand Covered (%)');
+    title('Effect of Budget');
+    grid on;
+
+    nexttile;
+    plot(radiusVals, covRadius, '-d', 'LineWidth', 2, ...
+        'Color', [0.47 0.67 0.19], 'MarkerFaceColor', [0.47 0.67 0.19]);
+    xlabel('Service Radius (km)');
+    ylabel('Demand Covered (%)');
+    title('Effect of Service Radius');
+    grid on;
+
+    sgtitle(sprintf('Sensitivity Analysis - %s', cityName));
     exportgraphics(gcf, outFile, 'Resolution', 150);
     fprintf('Saved: %s\n', outFile);
     drawnow;

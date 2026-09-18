@@ -7,8 +7,12 @@ clear; clc; close all;
 root = fileparts(mfilename('fullpath'));
 addpath(fullfile(root, 'src'));
 dataDir      = fullfile(root, 'data');
+geodataDir   = fullfile(root, 'geodata');
+distanceDir  = fullfile(geodataDir, 'road_distances');
+mapsDir      = fullfile(geodataDir, 'maps');
 resultsDir   = fullfile(root, 'results');
 settingsFile = fullfile(root, 'settings.csv');
+localRoadGraphFile = fullfile(mapsDir, 'bangladesh_roads.shp');
 
 %% Default parameters (used if a city has no row in settings.csv)
 defaultParams.w.car  = 0.25;
@@ -46,21 +50,36 @@ for i = 1:length(csvFiles)
     fprintf('  - %s\n', csvFiles(i).name);
 end
 
+summaryRows = [];
+
 %% Run the pipeline for each city
 for i = 1:length(csvFiles)
     dataFile = fullfile(dataDir, csvFiles(i).name);
     [~, cityName] = fileparts(csvFiles(i).name);
     outDir = fullfile(resultsDir, cityName);
-    roadDistanceFile = fullfile(dataDir, [cityName '_road_distances.csv']);
+    roadDistanceFile = fullfile(distanceDir, [cityName '_road_distances.csv']);
 
     params = getCityParams(settings, cityName, defaultParams);
 
     fprintf('\n========== Processing: %s ==========\n', cityName);
     fprintf('R=%g km | p=%d | budget=%s\n', params.R, params.p, budgetLabel(params.budget));
 
-    runCityOptimization(dataFile, outDir, params, roadDistanceFile, costProfile);
+    citySummary = runCityOptimization( ...
+        dataFile, outDir, params, roadDistanceFile, costProfile, ...
+        localRoadGraphFile);
+    if isempty(summaryRows)
+        summaryRows = citySummary;
+    else
+        summaryRows(end + 1, 1) = citySummary; %#ok<SAGROW>
+    end
 end
 
+summaryFile = fullfile(resultsDir, 'all_cities_summary.csv');
+if ~exist(resultsDir, 'dir')
+    mkdir(resultsDir);
+end
+writetable(struct2table(summaryRows), summaryFile);
+fprintf('\nSaved cross-city summary: %s\n', summaryFile);
 fprintf('\nAll cities processed. Results saved under: %s\n', resultsDir);
 
 %% ---- Local helper functions ----

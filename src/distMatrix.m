@@ -1,86 +1,163 @@
-function D = distMatrix(lat, lon, roadDistanceFile)
-% DISTMATRIX Loads or downloads road-network distances.
-%   If roadDistanceFile exists, it is loaded as an n-by-n CSV matrix in km.
-%   Otherwise, OSRM is queried and the matrix is cached to that file.
-%   Straight-line distance is used only when the download is unavailable.
+function D = distMatrix(lat, lon, roadDistanceFile, siteIds, localRoadGraphFile, radiusKm)
+% DISTMATRIX Computes local road distances from a MATLAB road shapefile.
 
     lat = lat(:);
     lon = lon(:);
     n = numel(lat);
+    if nargin < 4
+        siteIds = [];
+    end
+    if nargin < 5
+        localRoadGraphFile = '';
+    end
+    if nargin < 6 || isempty(radiusKm)
+        radiusKm = 5;
+    end
     if n ~= numel(lon) || any(~isfinite(lat)) || any(~isfinite(lon))
         error('distMatrix:InvalidCoordinates', ...
             'Latitude and longitude must be finite vectors of equal length.');
     end
 
-    if nargin >= 3 && ~isempty(roadDistanceFile) && exist(roadDistanceFile, 'file')
-        D = readmatrix(roadDistanceFile);
-        if ~isequal(size(D), [n, n]) || any(~isfinite(D(:))) || any(D(:) < 0)
-            error('distMatrix:InvalidRoadMatrix', ...
-                'Road distance file must be a finite %d-by-%d nonnegative matrix in km.', n, n);
-        end
-        D(1:n+1:end) = 0;
-        fprintf('Loaded road-network distance matrix (%d x %d) from %s.\n', ...
-            n, n, roadDistanceFile);
-        return;
-    end
-
-    if nargin >= 3 && ~isempty(roadDistanceFile)
-        try
-            D = downloadRoadDistances(lat, lon);
-            outputFolder = fileparts(roadDistanceFile);
-            if ~isempty(outputFolder) && ~exist(outputFolder, 'dir')
-                mkdir(outputFolder);
+    metadataFile = [roadDistanceFile '.meta.mat'];
+    if nargin >= 3 && ~isempty(roadDistanceFile) && exist(roadDistanceFile, 'file') ...
+            && exist(metadataFile, 'file') && ~isempty(siteIds)
+        cache = load(metadataFile, 'siteIds', 'lat', 'lon');
+        if isequal(string(cache.siteIds(:)), string(siteIds(:))) ...
+                && isequal(cache.lat(:), lat) && isequal(cache.lon(:), lon)
+            D = readmatrix(roadDistanceFile);
+            if isequal(size(D), [n, n]) && all(isfinite(D(:))) && all(D(:) >= 0)
+                fprintf('Loaded cached local road distances for %d sites.\n', n);
+                return;
             end
-            writematrix(D, roadDistanceFile);
-            fprintf('Downloaded and cached road-network distances to %s.\n', ...
-                roadDistanceFile);
-            return;
-        catch exception
-            warning('distMatrix:RoadDownloadFailed', ...
-                'Road-distance download failed (%s). Using straight-line fallback.', ...
-                exception.message);
         end
-    else
-        warning('distMatrix:RoadMatrixMissing', ...
-            'No road-distance cache path was provided. Using straight-line fallback.');
     end
 
-    % Computes pairwise haversine distances (km) - vectorized
-    Re = 6371; % Earth radius, km
+    if isempty(localRoadGraphFile) || ~exist(localRoadGraphFile, 'file')
+        error('distMatrix:LocalRoadMapMissing', ...
+            'Local road map not found: %s', localRoadGraphFile);
+    end
 
-    latR = deg2rad(lat);
-    lonR = deg2rad(lon);
-
-    dLat = latR - latR';
-    dLon = lonR - lonR';
-
-    a = sin(dLat/2).^2 + cos(latR) .* cos(latR') .* sin(dLon/2).^2;
-    D = 2 * Re * asin(sqrt(a));
-
-    fprintf('Straight-line distance matrix computed (%d x %d).\n', length(lat), length(lat));
+    D = localRoadGraphDistances(lat, lon, localRoadGraphFile, radiusKm);
+    if nargin >= 3 && ~isempty(roadDistanceFile)
+        outputFolder = fileparts(roadDistanceFile);
+        if ~isempty(outputFolder) && ~exist(outputFolder, 'dir')
+            mkdir(outputFolder);
+        end
+        writematrix(D, roadDistanceFile);
+        save(metadataFile, 'siteIds', 'lat', 'lon');
+    end
+    fprintf('Built local road graph and computed distances for %d sites.\n', n);
 end
 
-function D = downloadRoadDistances(lat, lon)
-    coordinates = strings(numel(lat), 1);
+function D = localRoadGraphDistances(lat, lon, graphFile, radiusKm)
+    cacheKey = sprintf('%.4f_%.4f_%.4f_%.4f', ...
+        min(lat), min(lon), max(lat), max(lon));
+    cacheKey = [cacheKey sprintf('_r%.2f', radiusKm)];
+    graphCacheFile = [graphFile '.' cacheKey '.local_graph.mat'];
+    if exist(graphCacheFile, 'file')
+        cached = load(graphCacheFile, 'nodeLat', 'nodeLon', ...
+            'edgeStart', 'edgeEnd', 'edgeDistanceKm', 'bbox');
+        nodeLat = cached.nodeLat;
+        nodeLon = cached.nodeLon;
+        edgeStart = cached.edgeStart;
+        edgeEnd = cached.edgeEnd;
+        edgeDistanceKm = cached.edgeDistanceKm;
+    else
+        [nodeLat, nodeLon, edgeStart, edgeEnd, edgeDistanceKm, bbox] = ...
+            readRoadShapefile(graphFile, lat, lon, radiusKm);
+        save(graphCacheFile, 'nodeLat', 'nodeLon', 'edgeStart', ...
+            'edgeEnd', 'edgeDistanceKm', 'bbox', '-v7.3');
+    end
+    nNodes = numel(nodeLat);
+
+    nearestNode = zeros(numel(lat), 1);
     for i = 1:numel(lat)
-        coordinates(i) = sprintf('%.6f,%.6f', lon(i), lat(i));
+        [~, nearestNode(i)] = min(haversineDistances( ...
+            lat(i), lon(i), nodeLat, nodeLon));
     end
 
-    url = "https://router.project-osrm.org/table/v1/driving/" ...
-        + strjoin(coordinates, ';') + "?annotations=distance";
-    response = webread(url, weboptions('Timeout', 120));
+    roadGraph = graph(edgeStart, edgeEnd, edgeDistanceKm, nNodes);
+    [uniqueNodes, ~, nodeGroups] = unique(nearestNode, 'stable');
+    uniqueDistances = distances(roadGraph, uniqueNodes, uniqueNodes);
+    D = uniqueDistances(nodeGroups, nodeGroups);
+    if any(~isfinite(D(:)))
+        error('distMatrix:DisconnectedRoadMap', ...
+            'The local road map cannot connect all candidate sites.');
+    end
+    D(1:size(D, 1)+1:end) = 0;
+end
 
-    if ~isfield(response, 'code') || ~strcmp(response.code, 'Ok') ...
-            || ~isfield(response, 'distances')
-        error('distMatrix:InvalidRoutingResponse', ...
-            'OSRM returned an unsuccessful or incomplete response.');
+function [nodeLat, nodeLon, edgeStart, edgeEnd, edgeDistanceKm, bbox] = ...
+        readRoadShapefile(filename, candidateLat, candidateLon, radiusKm)
+    if exist('shaperead', 'file') ~= 2
+        error('distMatrix:MappingToolboxRequired', ...
+            'Reading local road shapefiles requires the MATLAB Mapping Toolbox.');
     end
 
-    D = double(response.distances) ./ 1000;
-    n = numel(lat);
-    if ~isequal(size(D), [n, n]) || any(~isfinite(D(:))) || any(D(:) < 0)
-        error('distMatrix:InvalidDownloadedMatrix', ...
-            'OSRM returned an invalid %d-by-%d distance matrix.', n, n);
+    meanLat = mean(candidateLat);
+    latMargin = radiusKm / 111;
+    lonMargin = radiusKm / (111 * max(cosd(meanLat), 0.1));
+    bbox = [min(candidateLon) - lonMargin, min(candidateLat) - latMargin; ...
+        max(candidateLon) + lonMargin, max(candidateLat) + latMargin];
+    roads = shaperead(filename, 'UseGeoCoords', true, 'BoundingBox', bbox);
+    nodeLat = zeros(0, 1);
+    nodeLon = zeros(0, 1);
+    edgeStart = zeros(0, 1);
+    edgeEnd = zeros(0, 1);
+    edgeDistanceKm = zeros(0, 1);
+    nodeLookup = containers.Map('KeyType', 'char', 'ValueType', 'double');
+
+    for roadIndex = 1:numel(roads)
+        latValues = roads(roadIndex).Lat(:);
+        lonValues = roads(roadIndex).Lon(:);
+        valid = isfinite(latValues) & isfinite(lonValues);
+        latValues = latValues(valid);
+        lonValues = lonValues(valid);
+        for vertexIndex = 1:(numel(latValues) - 1)
+            [startNode, nodeLat, nodeLon, nodeLookup] = getRoadNode( ...
+                latValues(vertexIndex), lonValues(vertexIndex), ...
+                nodeLat, nodeLon, nodeLookup);
+            [endNode, nodeLat, nodeLon, nodeLookup] = getRoadNode( ...
+                latValues(vertexIndex + 1), lonValues(vertexIndex + 1), ...
+                nodeLat, nodeLon, nodeLookup);
+            segmentDistance = haversineDistances( ...
+                latValues(vertexIndex), lonValues(vertexIndex), ...
+                latValues(vertexIndex + 1), lonValues(vertexIndex + 1));
+            if startNode ~= endNode && segmentDistance > 0
+                edgeStart(end + 1, 1) = startNode; %#ok<AGROW>
+                edgeEnd(end + 1, 1) = endNode; %#ok<AGROW>
+                edgeDistanceKm(end + 1, 1) = segmentDistance; %#ok<AGROW>
+            end
+        end
     end
-    D(1:n+1:end) = 0;
+
+    if isempty(edgeStart)
+        error('distMatrix:EmptyRoadMap', ...
+            'The local shapefile contains no usable road segments.');
+    end
+end
+
+function [node, nodeLat, nodeLon, nodeLookup] = getRoadNode( ...
+        lat, lon, nodeLat, nodeLon, nodeLookup)
+    key = sprintf('%.6f_%.6f', lat, lon);
+    if isKey(nodeLookup, key)
+        node = nodeLookup(key);
+        return;
+    end
+    node = numel(nodeLat) + 1;
+    nodeLookup(key) = node;
+    nodeLat(node, 1) = lat;
+    nodeLon(node, 1) = lon;
+end
+
+function D = haversineDistances(lat, lon, nodeLat, nodeLon)
+    Re = 6371;
+    latR = deg2rad(lat);
+    lonR = deg2rad(lon);
+    nodeLatR = deg2rad(nodeLat);
+    nodeLonR = deg2rad(nodeLon);
+    dLat = latR - nodeLatR;
+    dLon = lonR - nodeLonR;
+    a = sin(dLat/2).^2 + cos(latR) .* cos(nodeLatR) .* sin(dLon/2).^2;
+    D = 2 * Re * asin(sqrt(max(0, a)));
 end
