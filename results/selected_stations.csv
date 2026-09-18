@@ -1,0 +1,9 @@
+ID,Name,Lat,Lon,Type,Weight
+7,Mirpur-10 Circle,23.8065,90.3686,Intersection,5
+20,Baridhara DOHS,23.8017,90.4225,Residential,3
+21,Square Hospital,23.7509,90.3831,Hospital,3
+22,United Hospital Gulshan,23.7943,90.4147,Hospital,3
+23,Dhaka Medical College Hospital,23.7256,90.3971,Hospital,3
+25,Hazrat Shahjalal Intl Airport Area,23.8433,90.3978,TransportHub,4
+26,Sayedabad Bus Terminal,23.7233,90.4267,TransportHub,4
+27,Gabtoli Bus Terminal,23.7797,90.3486,TransportHub,4
