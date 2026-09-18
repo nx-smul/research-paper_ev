@@ -1,44 +1,56 @@
-function runCityOptimization(dataFile, outDir, params)
+function runCityOptimization(dataFile, outDir, params, roadDistanceFile, costProfile)
 % RUNCITYOPTIMIZATION Runs the full EV charging siting pipeline for one city
-%   dataFile - path to a candidates CSV (same column schema for every city)
-%   outDir   - folder where this city's results will be saved
-%   params   - struct with fields: w (car,bike,pop,cost), R, p, budget
+
+    if nargin < 4
+        roadDistanceFile = '';
+    end
+    if nargin < 5
+        costProfile.level2 = [4, 1, 1];
+        costProfile.dcFast = [12, 8, 4];
+    end
 
     if ~exist(outDir, 'dir'); mkdir(outDir); end
 
     %% 1. Load data
     data = loadData(dataFile);
+    data = assignChargerType(data, costProfile);
 
     %% 2. Distance matrix
-    D = distMatrix(data.Lat, data.Lon);
+    D = distMatrix(data.Lat, data.Lon, roadDistanceFile);
 
     %% 3. Combine factors into one demand score
     h = computeDemand(data, params.w);
 
     %% 4. Optimize
-    A = D <= params.R;
-    [idx, x, u] = mclp(A, h, params.p, data.LandCost_LakhBDT, params.budget);
+    W = coverageWeights(D, params.R);
+    fprintf('\n>> Finding the best station locations...\n');
+    [idx, x, u] = mclp(W, h, params.p, data.AdjustedCost, params.budget);
 
-    %% Print and save selected stations
-    selected = data(idx, {'Name','Lat','Lon','Type','Weight_Car','Weight_Bike','PopDensity','LandCost_LakhBDT'});
+    %% Build selected-stations table
+    selected = data(idx, {'Name','Lat','Lon','Type','Weight_Car','Weight_Bike', ...
+        'PopDensity','LandCost','ChargerType','HardwareCost','GridUpgradeCost', ...
+        'CivilWorkCost','AdjustedCost'});
 
     hints = [ ...
-    "Hints:"
-    "  Car        - Estimated private EV car charging demand (scale 1-10, qualitative)"
-    "  Bike       - Estimated e-motorbike/scooter charging demand (scale 1-10, qualitative)"
-    "  Pop        - Population density score (scale 1-10, based on local census/estimate)"
-    "  Cost(Lakh) - Estimated land + installation cost in lakh BDT (real currency, not 1-10 scale)"
+    "What these columns mean:"
+    "  Car          - How much demand from private EV cars is expected here (1-10)"
+    "  Bike         - How much demand from e-motorbikes/scooters is expected here (1-10)"
+    "  Pop          - How densely populated the surrounding area is (1-10)"
+    "  Cost         - How expensive the land/site is, relatively (1-10, 1=cheapest)"
+    "  ChargerType  - Recommended charger: DC Fast (quick turnover sites) or Level 2 (longer dwell-time sites)"
+    "  AdjustedCost - Land + charger hardware + grid upgrade + civil/site work cost"
+    "  Coverage credit is stronger for stations closer to a demand point, and fades toward the edge of the service radius."
     ];
 
-    fprintf('\nSelected Stations:\n');
-    fprintf('%-28s %-10s %-10s %-15s %-6s %-6s %-6s %-10s\n', ...
-        'Name','Lat','Lon','Type','Car','Bike','Pop','Cost(Lakh)');
-    fprintf('%s\n', repmat('-', 1, 100));
+    fprintf('\nRecommended Charging Station Locations:\n');
+    fprintf('%-28s %-10s %-10s %-15s %-6s %-6s %-6s %-6s %-9s %-8s\n', ...
+        'Name','Lat','Lon','Type','Car','Bike','Pop','Cost','Charger','AdjCost');
+    fprintf('%s\n', repmat('-', 1, 115));
     for i = 1:height(selected)
-        fprintf('%-28s %-10.4f %-10.4f %-15s %-6d %-6d %-6d %-10d\n', ...
-            selected.Name{i}, selected.Lat(i), selected.Lon(i), selected.Type{i}, ...
+        fprintf('%-28s %-10.4f %-10.4f %-15s %-6d %-6d %-6d %-6d %-9s %-8.1f\n', ...
+            string(selected.Name(i)), selected.Lat(i), selected.Lon(i), string(selected.Type(i)), ...
             selected.Weight_Car(i), selected.Weight_Bike(i), selected.PopDensity(i), ...
-            selected.LandCost_LakhBDT(i));
+            selected.LandCost(i), string(selected.ChargerType(i)), selected.AdjustedCost(i));
     end
     fprintf('\n');
     for i = 1:length(hints)
@@ -49,20 +61,22 @@ function runCityOptimization(dataFile, outDir, params)
     txtFile = fullfile(outDir, 'selected_stations.txt');
     fid = fopen(txtFile, 'w');
     [~, cityName] = fileparts(dataFile);
-    fprintf(fid, 'EV Charging Station Optimization - %s\n', cityName);
-    fprintf(fid, 'Selected Stations (p = %d, R = %d km, Budget = %d Lakh BDT)\n\n', ...
-        params.p, params.R, params.budget);
-    fprintf(fid, '%-28s %-10s %-10s %-15s %-6s %-6s %-6s %-10s\n', ...
-        'Name','Lat','Lon','Type','Car','Bike','Pop','Cost(Lakh)');
-    fprintf(fid, '%s\n', repmat('-', 1, 100));
+    fprintf(fid, 'EV Charging Station Plan - %s\n', cityName);
+    fprintf(fid, 'Stations to build: %d  |  Service radius: %d km  |  Budget limit: %s\n\n', ...
+        params.p, params.R, budgetLabel(params.budget));
+    fprintf(fid, '%-28s %-10s %-10s %-15s %-6s %-6s %-6s %-6s %-9s %-8s\n', ...
+        'Name','Lat','Lon','Type','Car','Bike','Pop','Cost','Charger','AdjCost');
+    fprintf(fid, '%s\n', repmat('-', 1, 115));
     for i = 1:height(selected)
-        fprintf(fid, '%-28s %-10.4f %-10.4f %-15s %-6d %-6d %-6d %-10d\n', ...
-            selected.Name{i}, selected.Lat(i), selected.Lon(i), selected.Type{i}, ...
+        fprintf(fid, '%-28s %-10.4f %-10.4f %-15s %-6d %-6d %-6d %-6d %-9s %-8.1f\n', ...
+            string(selected.Name(i)), selected.Lat(i), selected.Lon(i), string(selected.Type(i)), ...
             selected.Weight_Car(i), selected.Weight_Bike(i), selected.PopDensity(i), ...
-            selected.LandCost_LakhBDT(i));
+            selected.LandCost(i), string(selected.ChargerType(i)), selected.AdjustedCost(i));
     end
-    fprintf(fid, '\nTotal Demand Coverage: %.1f%%\n', 100*sum(h(u==1))/sum(h));
-    fprintf(fid, 'Total Cost Used: %.1f / %.1f Lakh BDT\n\n', sum(data.LandCost_LakhBDT(idx)), params.budget);
+    fprintf(fid, '\nDemand Covered: %.1f%%\n', 100*sum(h.*u)/sum(h));
+    fprintf(fid, 'Adjusted Budget Used: %.1f out of %s\n', sum(selected.AdjustedCost), budgetLabel(params.budget));
+    fprintf(fid, 'Original Land Cost: %.1f\n', sum(selected.LandCost));
+    fprintf(fid, 'Adjusted Cost (charger-type aware): %.1f\n\n', sum(selected.AdjustedCost));
     for i = 1:length(hints)
         fprintf(fid, '%s\n', hints(i));
     end
@@ -70,27 +84,86 @@ function runCityOptimization(dataFile, outDir, params)
     fprintf('\nSaved: %s\n', txtFile);
 
     %% 5. Plot map
-    plotMap(data, idx, params.R, outDir);
+    plotMap(data, idx, params.R, outDir, true);
+    drawnow;
 
-    %% 6. Save results CSV
-    writetable(data(idx,:), fullfile(outDir, 'selected_stations.csv'));
+    %% 6. Save results CSV (now includes charger type + adjusted cost)
+    writetable(selected, fullfile(outDir, 'selected_stations.csv'));
     fprintf('Saved: %s\n', fullfile(outDir, 'selected_stations.csv'));
 
-    %% 7. Sensitivity: coverage vs number of stations
+    %% 7a. How coverage changes as you add more stations
+    fprintf('\n>> Testing how coverage improves as more stations are added...\n');
     pRange = 1:15;
-    cov = zeros(size(pRange));
+    covP = zeros(size(pRange));
     for k = 1:length(pRange)
-        [~, ~, uk] = mclp(A, h, pRange(k), data.LandCost_LakhBDT, Inf);
-        cov(k) = 100 * sum(h(uk==1)) / sum(h);
+        [~, ~, uk] = mclp(W, h, pRange(k), data.AdjustedCost, Inf);
+        covP(k) = 100 * sum(h.*uk) / sum(h);
+    end
+    plotSensitivity(pRange, covP, 'Number of Stations', ...
+        sprintf('More Stations = More Coverage - %s', cityName), ...
+        fullfile(outDir, 'sensitivity_p.png'));
+
+    %% 7b. How coverage changes with budget
+    fprintf('\n>> Testing how coverage improves as budget increases...\n');
+    maxBudget = sum(data.AdjustedCost);
+    budgetRange = linspace(0, maxBudget, 10);
+    covBudget = zeros(size(budgetRange));
+    for k = 1:length(budgetRange)
+        [~, ~, uk] = mclp(W, h, params.p, data.AdjustedCost, budgetRange(k));
+        covBudget(k) = 100 * sum(h.*uk) / sum(h);
+    end
+    plotSensitivity(budgetRange, covBudget, 'Budget Available', ...
+        sprintf('Coverage vs Budget - %s', cityName), ...
+        fullfile(outDir, 'sensitivity_budget.png'));
+
+    %% 7c. How coverage changes with service radius
+    fprintf('\n>> Testing how coverage changes with a bigger service radius...\n');
+    Rrange = 0.5:0.5:5;
+    covR = zeros(size(Rrange));
+    for k = 1:length(Rrange)
+        Wk = coverageWeights(D, Rrange(k));
+        [~, ~, uk] = mclp(Wk, h, params.p, data.AdjustedCost, params.budget);
+        covR(k) = 100 * sum(h.*uk) / sum(h);
+    end
+    plotSensitivity(Rrange, covR, 'Service Radius (km)', ...
+        sprintf('Coverage vs Service Radius - %s', cityName), ...
+        fullfile(outDir, 'sensitivity_R.png'));
+
+    %% Print summary tables
+    fprintf('\n--- Coverage as Stations Increase ---\n');
+    for k = 1:length(pRange)
+        fprintf('  %2d station(s)  ->  %.1f%% of demand covered\n', pRange(k), covP(k));
     end
 
-    figure('Name', ['Sensitivity Analysis - ' cityName]);
-    plot(pRange, cov, '-o', 'LineWidth', 2, 'MarkerFaceColor','b');
-    xlabel('Number of Stations (p)');
-    ylabel('Demand Coverage (%)');
-    title(sprintf('Coverage vs Number of Charging Stations - %s', cityName));
+    fprintf('\n--- Coverage as Budget Increases ---\n');
+    for k = 1:length(budgetRange)
+        fprintf('  Budget %6.1f  ->  %.1f%% of demand covered\n', budgetRange(k), covBudget(k));
+    end
+
+    fprintf('\n--- Coverage as Service Radius Increases ---\n');
+    for k = 1:length(Rrange)
+        fprintf('  %4.1f km radius  ->  %.1f%% of demand covered\n', Rrange(k), covR(k));
+    end
+end
+
+function s = budgetLabel(b)
+    if isinf(b)
+        s = 'no limit';
+    else
+        s = sprintf('%.0f', b);
+    end
+end
+
+function plotSensitivity(xVals, yVals, xLabelStr, titleStr, outFile)
+    figure('Name', titleStr);
+    plot(xVals, yVals, '-o', 'LineWidth', 2, 'MarkerFaceColor', 'b');
+    xlabel(xLabelStr);
+    ylabel('Percent of Demand Covered (%)');
+    title(titleStr);
     grid on;
-    exportgraphics(gcf, fullfile(outDir, 'sensitivity.png'), 'Resolution', 300);
-    fprintf('Saved: %s\n', fullfile(outDir, 'sensitivity.png'));
-    close(gcf);
+    ax = gca;
+    ax.Toolbar.Visible = 'off';
+    exportgraphics(gcf, outFile, 'Resolution', 150);
+    fprintf('Saved: %s\n', outFile);
+    drawnow;
 end
