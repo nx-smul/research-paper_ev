@@ -1,0 +1,32 @@
+ID,Name,Lat,Lon,Type,Weight_Car,Weight_Bike,PopDensity,LandCost_LakhBDT
+
+1,Farmgate,23.7561,90.3872,Intersection,7,9,7,60
+2,Bashundhara City Mall,23.7511,90.3906,Mall,9,6,6,70
+3,Jamuna Future Park,23.8111,90.4247,Mall,9,6,5,50
+4,Centrepoint Uttara,23.8525,90.4062,Mall,8,6,5,25
+5,Gulshan-1 Circle,23.7809,90.4160,Commercial,9,4,4,150
+6,Gulshan-2 Circle,23.7925,90.4155,Commercial,9,4,4,150
+7,Mirpur-10 Circle,23.8065,90.3686,Intersection,5,9,10,30
+8,Jatrabari Intersection,23.7104,90.4331,Intersection,4,9,9,20
+9,Dhaka University (TSC),23.7322,90.3944,University,4,9,6,80
+10,BUET,23.7267,90.3927,University,4,8,6,80
+11,North South University,23.8153,90.4256,University,7,6,5,50
+12,Uttara Sector 7 Junction,23.8709,90.3993,Residential,6,6,5,25
+13,Motijheel Commercial Area,23.7331,90.4172,Commercial,9,6,8,200
+14,Mohakhali Bus Terminal,23.7789,90.4048,TransportHub,5,9,7,60
+15,Dhanmondi 27 (Rifles Square),23.7461,90.3742,Commercial,7,6,6,120
+16,Kawran Bazar,23.7509,90.3927,Commercial,7,8,8,90
+17,Panthapath Intersection,23.7508,90.3874,Intersection,7,7,7,90
+18,Shahbagh Intersection,23.7383,90.3958,Intersection,6,8,6,80
+19,Banani Junction,23.7936,90.4043,Commercial,9,4,5,130
+20,Baridhara DOHS,23.8017,90.4225,Residential,8,3,3,140
+21,Square Hospital,23.7509,90.3831,Hospital,7,4,6,90
+22,United Hospital Gulshan,23.7943,90.4147,Hospital,8,4,4,130
+23,Dhaka Medical College Hospital,23.7256,90.3971,Hospital,4,8,9,70
+24,Evercare Hospital Bashundhara,23.7935,90.4288,Hospital,8,4,5,60
+25,Hazrat Shahjalal Intl Airport Area,23.8433,90.3978,TransportHub,8,5,3,40
+26,Sayedabad Bus Terminal,23.7233,90.4267,TransportHub,4,9,9,20
+27,Gabtoli Bus Terminal,23.7797,90.3486,TransportHub,4,9,8,25
+28,Kamalapur Railway Station,23.7332,90.4264,TransportHub,5,9,8,60
+29,Mohammadpur Town Hall,23.7628,90.3589,Commercial,6,7,7,45
+30,Rampura Bridge Intersection,23.7597,90.4258,Intersection,6,7,7,55

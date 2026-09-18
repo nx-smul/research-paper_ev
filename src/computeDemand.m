@@ -1,12 +1,15 @@
 function h = computeDemand(data, w)
 % COMPUTEDEMAND Combines vehicle categories + other factors into one demand score
-%   data - candidate table (must contain Weight_Car, Weight_Bike, PopDensity, LandCost)
-%   w    - struct of weighting coefficients for each factor
+%   data - candidate table:
+%       Weight_Car         - private EV car demand (1-10, qualitative estimate)
+%       Weight_Bike        - e-motorbike/scooter demand (1-10, qualitative estimate)
+%       PopDensity         - population density score (1-10, derived from BBS 2022 census)
+%       LandCost_LakhBDT   - estimated land + installation cost (lakh BDT, real currency)
+%   w    - struct of weighting coefficients (car, bike, pop, cost)
 %
 %   h    - combined demand score per site (higher = more attractive to serve)
 
-    % Normalize LandCost into a "penalty" (high cost = lower attractiveness)
-    costPenalty = data.LandCost / max(data.LandCost);
+    costPenalty = data.LandCost_LakhBDT / max(data.LandCost_LakhBDT);
 
     h = w.car  * data.Weight_Car ...
       + w.bike * data.Weight_Bike ...

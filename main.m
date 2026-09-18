@@ -1,122 +1,92 @@
-%% EV Charging Station Optimization - Dhaka City
-% Now includes vehicle category demand (cars, motorbikes - rickshaws excluded),
-% population density, and land cost as combined factors.
+%% EV Charging Station Optimization - Multi-City Runner
+% Reads every CSV in data/ and applies per-city parameters from settings.csv,
+% falling back to defaults if a city isn't listed there.
 
 clear; clc; close all;
 
 root = fileparts(mfilename('fullpath'));
 addpath(fullfile(root, 'src'));
-dataFile = fullfile(root, 'data', 'candidates.csv');
-outDir   = fullfile(root, 'results');
-if ~exist(outDir, 'dir'); mkdir(outDir); end
+dataDir     = fullfile(root, 'data');
+resultsDir  = fullfile(root, 'results');
+settingsFile = fullfile(root, 'settings.csv');
 
-%% 1. Load data
-data = loadData(dataFile);
+%% Default parameters (used if a city has no row in settings.csv)
+defaultParams.w.car  = 0.25;
+defaultParams.w.bike = 0.30;
+defaultParams.w.pop  = 0.20;
+defaultParams.w.cost = 0.25;
+defaultParams.R      = 2;
+defaultParams.p      = 8;
+defaultParams.budget = 500;
 
-%% 2. Distance matrix
-D = distMatrix(data.Lat, data.Lon);
-
-%% 3. Combine factors into one demand score
-% Adjust these weights based on your paper's assumptions/priorities
-w.car  = 1.0;   % weight for private EV car demand
-w.bike = 1.2;   % weight for e-motorbike demand (higher - more common in Dhaka)
-w.pop  = 0.8;   % weight for population density
-w.cost = 1.5;   % penalty weight for land cost (higher = more cost-averse siting)
-
-h = computeDemand(data, w);
-%% 4. Optimize
-R = 2;              % coverage radius (km)
-p = 8;               % max number of stations
-budget = 30;         % total budget in cost units (sum of LandCost of selected sites)
-
-A = D <= R;
-[idx, x, u] = mclp(A, h, p, data.LandCost, budget);
-
-fprintf('\nSelected Stations:\n');
-disp(data(idx, {'Name','Lat','Lon','Type','Weight_Car','Weight_Bike','LandCost'}));
-
-%% 5. Plot map
-plotMap(data, idx, R, outDir);
-
-%% 6. Save results
-writetable(data(idx,:), fullfile(outDir, 'selected_stations.csv'));
-fprintf('\nSaved: %s\n', fullfile(outDir, 'selected_stations.csv'));
-
-%% 7. Sensitivity: coverage vs number of stations (budget unconstrained here)
-pRange = 1:15;
-cov = zeros(size(pRange));
-
-for k = 1:length(pRange)
-    [~, ~, uk] = mclp(A, h, pRange(k), data.LandCost, Inf);
-    cov(k) = 100 * sum(h(uk==1)) / sum(h);
+%% Load settings table (if it exists)
+if exist(settingsFile, 'file')
+    settings = readtable(settingsFile, 'TextType', 'string');
+    fprintf('Loaded settings for %d cities.\n', height(settings));
+else
+    settings = table();
+    fprintf('No settings.csv found — using default parameters for all cities.\n');
 end
 
-figure('Name','Sensitivity Analysis');
-plot(pRange, cov, '-o', 'LineWidth', 2, 'MarkerFaceColor','b');
-xlabel('Number of Stations (p)');
-ylabel('Demand Coverage (%)');
-title('Coverage vs Number of Charging Stations');
-grid on;
-exportgraphics(gcf, fullfile(outDir, 'sensitivity.png'), 'Resolution', 300);
-fprintf('Saved: %s\n', fullfile(outDir, 'sensitivity.png'));%% EV Charging Station Optimization - Dhaka City
-% Now includes vehicle category demand (cars, motorbikes - rickshaws excluded),
-% population density, and land cost as combined factors.
+%% Find all candidate CSV files in data/ (excluding settings.csv itself)
+csvFiles = dir(fullfile(dataDir, '*.csv'));
+csvFiles = csvFiles(~strcmpi({csvFiles.name}, 'settings.csv'));
 
-clear; clc; close all;
-
-root = fileparts(mfilename('fullpath'));
-addpath(fullfile(root, 'src'));
-dataFile = fullfile(root, 'data', 'candidates.csv');
-outDir   = fullfile(root, 'results');
-if ~exist(outDir, 'dir'); mkdir(outDir); end
-
-%% 1. Load data
-data = loadData(dataFile);
-
-%% 2. Distance matrix
-D = distMatrix(data.Lat, data.Lon);
-
-%% 3. Combine factors into one demand score
-% Adjust these weights based on your paper's assumptions/priorities
-w.car  = 1.0;   % weight for private EV car demand
-w.bike = 1.2;   % weight for e-motorbike demand (higher - more common in Dhaka)
-w.pop  = 0.8;   % weight for population density
-w.cost = 1.5;   % penalty weight for land cost (higher = more cost-averse siting)
-
-h = computeDemand(data, w);
-
-%% 4. Optimize
-R = 2;              % coverage radius (km)
-p = 8;               % max number of stations
-budget = 30;         % total budget in cost units (sum of LandCost of selected sites)
-
-A = D <= R;
-[idx, x, u] = mclp(A, h, p, data.LandCost, budget);
-
-fprintf('\nSelected Stations:\n');
-disp(data(idx, {'Name','Lat','Lon','Type','Weight_Car','Weight_Bike','LandCost'}));
-
-%% 5. Plot map
-plotMap(data, idx, R, outDir);
-
-%% 6. Save results
-writetable(data(idx,:), fullfile(outDir, 'selected_stations.csv'));
-fprintf('\nSaved: %s\n', fullfile(outDir, 'selected_stations.csv'));
-
-%% 7. Sensitivity: coverage vs number of stations (budget unconstrained here)
-pRange = 1:15;
-cov = zeros(size(pRange));
-
-for k = 1:length(pRange)
-    [~, ~, uk] = mclp(A, h, pRange(k), data.LandCost, Inf);
-    cov(k) = 100 * sum(h(uk==1)) / sum(h);
+if isempty(csvFiles)
+    error('No candidate CSV files found in %s.', dataDir);
 end
 
-figure('Name','Sensitivity Analysis');
-plot(pRange, cov, '-o', 'LineWidth', 2, 'MarkerFaceColor','b');
-xlabel('Number of Stations (p)');
-ylabel('Demand Coverage (%)');
-title('Coverage vs Number of Charging Stations');
-grid on;
-exportgraphics(gcf, fullfile(outDir, 'sensitivity.png'), 'Resolution', 300);
-fprintf('Saved: %s\n', fullfile(outDir, 'sensitivity.png'));
+fprintf('Found %d city dataset(s):\n', length(csvFiles));
+for i = 1:length(csvFiles)
+    fprintf('  - %s\n', csvFiles(i).name);
+end
+
+%% Run the pipeline for each city
+for i = 1:length(csvFiles)
+    dataFile = fullfile(dataDir, csvFiles(i).name);
+    [~, cityName] = fileparts(csvFiles(i).name);
+    outDir = fullfile(resultsDir, cityName);
+
+    params = getCityParams(settings, cityName, defaultParams);
+
+    fprintf('\n========== Processing: %s ==========\n', cityName);
+    fprintf('R=%g km | p=%d | budget=%s\n', params.R, params.p, ...
+        ifelseInf(params.budget));
+
+    runCityOptimization(dataFile, outDir, params);
+end
+
+fprintf('\nAll cities processed. Results saved under: %s\n', resultsDir);
+
+%% ---- Local helper functions ----
+function params = getCityParams(settings, cityName, defaultParams)
+    params = defaultParams;
+    if isempty(settings) || ~any(strcmpi(settings.CityFile, cityName))
+        return; % use defaults
+    end
+    row = settings(strcmpi(settings.CityFile, cityName), :);
+    params.R      = row.R;
+    params.p      = row.p;
+    params.budget = parseBudget(row.budget);
+    params.w.car  = row.w_car;
+    params.w.bike = row.w_bike;
+    params.w.pop  = row.w_pop;
+    params.w.cost = row.w_cost;
+end
+
+function b = parseBudget(val)
+    % Handles budget column whether it's read as text ("Inf") or numeric
+    if isstring(val) || ischar(val)
+        b = str2double(val);   % str2double('Inf') correctly returns Inf
+    else
+        b = val;
+    end
+end
+
+function s = ifelseInf(v)
+    if isinf(v)
+        s = 'unlimited';
+    else
+        s = sprintf('%g', v);
+    end
+end
