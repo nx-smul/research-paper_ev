@@ -24,7 +24,6 @@ w.pop  = 0.8;   % weight for population density
 w.cost = 1.5;   % penalty weight for land cost (higher = more cost-averse siting)
 
 h = computeDemand(data, w);
-
 %% 4. Optimize
 R = 2;              % coverage radius (km)
 p = 8;               % max number of stations
