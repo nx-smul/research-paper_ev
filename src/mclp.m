@@ -1,36 +1,44 @@
-function [idx, x, u] = mclp(A, demand, p)
-% Solves the Maximal Covering Location Problem
-%   A      - precomputed coverage matrix (n x n logical/double), A(i,j)=1 if site i covers demand j
-%   demand - demand weight per site
-%   p      - number of stations to pick
+function [idx, x, u] = mclp(A, demand, p, cost, budget)
+% Solves the Maximal Covering Location Problem with an optional budget cap
+%   A      - coverage matrix (n x n)
+%   demand - combined demand score per site
+%   p      - max number of stations to pick
+%   cost   - cost per site (e.g., LandCost column)
+%   budget - total budget available (same units as cost); use Inf to disable
 
     n = size(A, 1);
     demand = demand(:);
+    cost = cost(:);
+    A = double(A);
 
     f = [zeros(n,1); -demand];
 
-    % Sparse constraints - much faster for intlinprog
+    % Coverage-linking constraint
     Aineq = sparse([-A, speye(n)]);
     bineq = zeros(n,1);
 
-    Aeq = sparse([ones(1,n), zeros(1,n)]);
-    beq = p;
+    % Budget constraint (only on x, not u)
+    if isfinite(budget)
+        Aineq = [Aineq; sparse([cost', zeros(1,n)])];
+        bineq = [bineq; budget];
+    end
+
+    % Station count constraint: at most p (not exactly p, since budget may bind first)
+    Aineq = [Aineq; sparse([ones(1,n), zeros(1,n)])];
+    bineq = [bineq; p];
 
     lb = zeros(2*n,1);
     ub = ones(2*n,1);
     intcon = 1:2*n;
 
-    opts = optimoptions('intlinprog', ...
-        'Display', 'off', ...
-        'RelativeGapTolerance', 1e-4, ...   % small speed/accuracy tradeoff
-        'IntegerTolerance', 1e-5);
+    opts = optimoptions('intlinprog', 'Display', 'off', 'RelativeGapTolerance', 1e-4);
 
-    sol = intlinprog(f, intcon, Aineq, bineq, Aeq, beq, lb, ub, opts);
+    sol = intlinprog(f, intcon, Aineq, bineq, [], [], lb, ub, opts);
 
     x = round(sol(1:n));
     u = round(sol(n+1:end));
     idx = find(x == 1);
 
-    fprintf('Selected %d stations | Coverage: %.1f%%\n', ...
-        sum(x), 100*sum(demand(u==1))/sum(demand));
+    fprintf('Selected %d stations | Coverage: %.1f%% | Cost used: %.1f/%.1f\n', ...
+        sum(x), 100*sum(demand(u==1))/sum(demand), sum(cost(x==1)), budget);
 end
