@@ -35,12 +35,33 @@ function summary = runCityOptimization(dataFile, outDir, params, roadDistanceFil
     %% 4. Optimize
     W = coverageWeights(D, params.R);
     fprintf('\n>> Finding the best station locations...\n');
-    [idx, ~, u] = mclp(W, h, params.p, data.AdjustedCost, params.budget);
+    Wtypes = cat(3, W, W);
+    costOptions = [data.Level2AdjustedCost, data.DCFastAdjustedCost];
+    allowedOptions = [data.Level2Eligible, data.DCFastEligible];
+    [idx, typeIdx, ~, u] = mclpWithChargerTypes(Wtypes, h, params.p, ...
+        costOptions, allowedOptions, params.budget, ["Level 2", "DC Fast"], ...
+        [0, min(params.minFast, params.p)]);
 
     %% Build selected-stations table
     selected = data(idx, {'Name','Lat','Lon','Type','Weight_Car','Weight_Bike', ...
-        'PopDensity','LandCost','ChargerType','HardwareCost','GridUpgradeCost', ...
-        'CivilWorkCost','AdjustedCost'});
+        'PopDensity','LandCost'});
+    typeNames = ["Level 2", "DC Fast"];
+    selected.ChargerType = typeNames(typeIdx)';
+    selected.HardwareCost = zeros(height(selected), 1);
+    selected.GridUpgradeCost = zeros(height(selected), 1);
+    selected.CivilWorkCost = zeros(height(selected), 1);
+    for k = 1:height(selected)
+        if typeIdx(k) == 1
+            profile = costProfile.level2;
+        else
+            profile = costProfile.dcFast;
+        end
+        selected.HardwareCost(k) = profile(1);
+        selected.GridUpgradeCost(k) = profile(2);
+        selected.CivilWorkCost(k) = profile(3);
+    end
+    selected.AdjustedCost = selected.LandCost + selected.HardwareCost ...
+        + selected.GridUpgradeCost + selected.CivilWorkCost;
 
     hints = [ ...
     "What these columns mean:"

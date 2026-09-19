@@ -147,6 +147,15 @@ costProfile.level2 = [4, 1, 1];
 costProfile.dcFast = [12, 8, 4];
 ```
 
+The optimizer now chooses the charger type together with the site. Level 2 is
+allowed at every candidate, while DC Fast is allowed at high-turnover sites
+and candidates whose `Weight_Car` is at least 8. A minimum number of DC Fast
+sites can be configured with `defaultParams.minFast` in `main.m`, or with a
+`min_fast` column in `settings.csv`. The default minimum is 2.
+
+The final station plan therefore reports a mixture of Level 2 and DC Fast
+sites rather than assigning one fixed charger type before optimization.
+
 These are relative model units, not Bangladeshi taka. Replace them with local
 cost estimates if using real currency.
 
@@ -198,12 +207,17 @@ columns in the same order as the city CSV.
 
 1. Requires the local road shapefile.
 2. Builds a road graph from each shapefile polyline.
-3. Snaps candidate sites to the nearest road vertex.
+3. Connects each candidate site to the nearest point on a road segment.
 4. Computes shortest-path distances locally.
 5. Saves and validates the resulting city distance matrix.
 
 No online road search or straight-line fallback is used. If the local road
 shapefile is missing or disconnected, the program stops with a clear error.
+Candidate-to-road connections use segment-level projection rather than
+nearest-vertex snapping, which reduces access-distance error on long or
+sparsely sampled road segments. Multipart shapefile geometry is also kept
+separate at `NaN` separators so unrelated road parts are never joined.
+
 The clipped road overlay used in each city's PNG map is cached under
 `cache/map_overlays/<city>_local_roads_overlay.mat` so later runs do not
 reread the full shapefile. Processed road graphs are stored in

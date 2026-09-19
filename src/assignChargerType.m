@@ -1,10 +1,8 @@
 function selected = assignChargerType(selected, costProfile)
-% ASSIGNCHARGERTYPE Assigns a charger recommendation and explicit site costs.
-%   Transport hubs / intersections -> DC Fast (short dwell time, transient traffic,
-%       drivers need to charge quickly and move on)
-%   Malls / hospitals / universities / commercial / residential -> Level 2
-%       (longer dwell time - shopping, working, studying, visiting - so a slower,
-%       cheaper charger is sufficient and more cost-effective)
+% ASSIGNCHARGERTYPE Adds charger options and explicit site costs.
+%   Level 2 is available at every site. DC Fast is available at transport
+%   hubs, intersections, highways, bus terminals, and high-car-demand sites.
+%   The optimizer chooses the final type subject to cost and policy limits.
 %
 %   Adds three columns to the input table:
 %       ChargerType            - "DC Fast" or "Level 2"
@@ -27,7 +25,6 @@ function selected = assignChargerType(selected, costProfile)
     end
 
     n = height(selected);
-    chargerType = strings(n,1);
     hardwareCost = zeros(n,1);
     gridUpgradeCost = zeros(n,1);
     civilWorkCost = zeros(n,1);
@@ -36,22 +33,30 @@ function selected = assignChargerType(selected, costProfile)
     stationTypes = string(selected.Type);
     isFastCharge = ismember(stationTypes, fastChargeTypes);
 
-    chargerType(:) = "Level 2";
-    chargerType(isFastCharge) = "DC Fast";
+    % Level 2 is available at every candidate. DC Fast is available at
+    % high-turnover locations or locations with strong car demand.
+    dcFastEligible = isFastCharge | (selected.Weight_Car >= 8);
+    level2Cost = selected.LandCost + sum(costProfile.level2);
+    dcFastCost = selected.LandCost + sum(costProfile.dcFast);
 
-    hardwareCost(~isFastCharge) = costProfile.level2(1);
-    gridUpgradeCost(~isFastCharge) = costProfile.level2(2);
-    civilWorkCost(~isFastCharge) = costProfile.level2(3);
-    hardwareCost(isFastCharge) = costProfile.dcFast(1);
-    gridUpgradeCost(isFastCharge) = costProfile.dcFast(2);
-    civilWorkCost(isFastCharge) = costProfile.dcFast(3);
+    selected.Level2Eligible = true(n,1);
+    selected.DCFastEligible = dcFastEligible;
+    selected.Level2AdjustedCost = level2Cost;
+    selected.DCFastAdjustedCost = dcFastCost;
 
+    % Retain a default recommendation for reports and backwards-compatible
+    % callers. The optimization can now choose a different type per site.
+    chargerType = repmat("Level 2", n, 1);
+    chargerType(dcFastEligible) = "DC Fast";
     selected.ChargerType = chargerType;
-    selected.HardwareCost = hardwareCost;
-    selected.GridUpgradeCost = gridUpgradeCost;
-    selected.CivilWorkCost = civilWorkCost;
-    selected.AdjustedCost = selected.LandCost + hardwareCost ...
-        + gridUpgradeCost + civilWorkCost;
+    selected.HardwareCost = zeros(n,1);
+    selected.GridUpgradeCost = zeros(n,1);
+    selected.CivilWorkCost = zeros(n,1);
+    selected.HardwareCost(dcFastEligible) = costProfile.dcFast(1);
+    selected.GridUpgradeCost(dcFastEligible) = costProfile.dcFast(2);
+    selected.CivilWorkCost(dcFastEligible) = costProfile.dcFast(3);
+    selected.AdjustedCost = selected.LandCost + selected.HardwareCost ...
+        + selected.GridUpgradeCost + selected.CivilWorkCost;
 
     fprintf('\nCharger types assigned:\n');
     for i = 1:n

@@ -23,6 +23,7 @@ defaultParams.w.cost = 0.25;
 defaultParams.R      = 2;
 defaultParams.p      = 8;
 defaultParams.budget = 35;   % relative cost units, not currency
+defaultParams.minFast = 2;   % minimum DC Fast sites when feasible
 
 % Explicit relative capital-cost components:
 % [charger hardware, grid upgrade, civil/site work].
@@ -97,6 +98,9 @@ function params = getCityParams(settings, cityName, defaultParams)
     params.w.bike = row.w_bike;
     params.w.pop  = row.w_pop;
     params.w.cost = row.w_cost;
+    if ismember("min_fast", string(row.Properties.VariableNames))
+        params.minFast = row.min_fast;
+    end
 end
 
 function b = parseBudget(val)
