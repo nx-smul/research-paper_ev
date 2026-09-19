@@ -1,4 +1,4 @@
-function plotMap(data, idx, R, outDir, useBasemap, localRoadGraphFile)
+function plotMap(data, idx, R, outDir, useBasemap, localRoadGraphFile, cacheDir, cityName)
 % Plots candidate and selected sites, with location labels
 %   useBasemap - true (default): fetch real map tiles (slower, prettier)
 %                false: plain lat/lon scatter, no network calls (fast, for debugging)
@@ -8,6 +8,12 @@ function plotMap(data, idx, R, outDir, useBasemap, localRoadGraphFile)
     end
     if nargin < 6
         localRoadGraphFile = '';
+    end
+    if nargin < 7
+        cacheDir = '';
+    end
+    if nargin < 8
+        cityName = 'city';
     end
 
     figure('Name','EV Charging Station Optimization');
@@ -29,7 +35,7 @@ function plotMap(data, idx, R, outDir, useBasemap, localRoadGraphFile)
             geoscatter(data.Lat(idx), data.Lon(idx), 150, 'red', 'filled', ...
                 'DisplayName', 'Selected');
             if ~isempty(localRoadGraphFile) && exist(localRoadGraphFile, 'file')
-                roads = loadLocalRoadOverlay(data, outDir, localRoadGraphFile, R);
+                roads = loadLocalRoadOverlay(data, outDir, localRoadGraphFile, R, cacheDir, cityName);
                 plotLocalRoadGraph(roads, true);
             end
 
@@ -55,7 +61,7 @@ function plotMap(data, idx, R, outDir, useBasemap, localRoadGraphFile)
             [latLimits, lonLimits] = mapLimits(data, R);
             geolimits(latLimits, lonLimits);
             if ~isempty(localRoadGraphFile) && exist(localRoadGraphFile, 'file')
-                roads = loadLocalRoadOverlay(data, outDir, localRoadGraphFile, R);
+                roads = loadLocalRoadOverlay(data, outDir, localRoadGraphFile, R, cacheDir, cityName);
                 plotLocalRoadGraph(roads, true);
             end
             geoscatter(data.Lat, data.Lon, 60, 'blue', 'filled', ...
@@ -68,7 +74,7 @@ function plotMap(data, idx, R, outDir, useBasemap, localRoadGraphFile)
     end
 
     if ~geographicMap && ~isempty(localRoadGraphFile) && exist(localRoadGraphFile, 'file')
-        roads = loadLocalRoadOverlay(data, outDir, localRoadGraphFile, R);
+        roads = loadLocalRoadOverlay(data, outDir, localRoadGraphFile, R, cacheDir, cityName);
         plotLocalRoadGraph(roads, false);
         hold on;
         scatter(data.Lon, data.Lat, 60, 'blue', 'filled', 'DisplayName', 'Candidates');
@@ -116,13 +122,22 @@ function loaded = tryBasemaps(names)
     end
 end
 
-function roads = loadLocalRoadOverlay(data, outDir, localRoadGraphFile, radiusKm)
+function roads = loadLocalRoadOverlay(data, outDir, localRoadGraphFile, radiusKm, cacheDir, cityName)
     meanLat = mean(data.Lat);
     latMargin = radiusKm / 111;
     lonMargin = radiusKm / (111 * max(cosd(meanLat), 0.1));
     bbox = [min(data.Lon) - lonMargin, min(data.Lat) - latMargin; ...
         max(data.Lon) + lonMargin, max(data.Lat) + latMargin];
-    roadsCacheFile = fullfile(outDir, 'local_roads_overlay.mat');
+    if isempty(cacheDir)
+        roadsCacheFile = fullfile(outDir, 'local_roads_overlay.mat');
+    else
+        overlayCacheDir = fullfile(cacheDir, 'map_overlays');
+        if ~exist(overlayCacheDir, 'dir')
+            mkdir(overlayCacheDir);
+        end
+        roadsCacheFile = fullfile(overlayCacheDir, ...
+            [cityName '_local_roads_overlay.mat']);
+    end
     if exist(roadsCacheFile, 'file')
         cached = load(roadsCacheFile, 'roads', 'bbox', 'sourceFile');
         if isequal(cached.bbox, bbox) && strcmp(cached.sourceFile, localRoadGraphFile)

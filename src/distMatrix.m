@@ -1,17 +1,21 @@
-function D = distMatrix(lat, lon, roadDistanceFile, siteIds, localRoadGraphFile, radiusKm)
+function D = distMatrix(lat, lon, roadDistanceFile, siteNames, localRoadGraphFile, ...
+        radiusKm, cacheDir)
 % DISTMATRIX Computes local road distances from a MATLAB road shapefile.
 
     lat = lat(:);
     lon = lon(:);
     n = numel(lat);
     if nargin < 4
-        siteIds = [];
+        siteNames = [];
     end
     if nargin < 5
         localRoadGraphFile = '';
     end
     if nargin < 6 || isempty(radiusKm)
         radiusKm = 5;
+    end
+    if nargin < 7
+        cacheDir = '';
     end
     if n ~= numel(lon) || any(~isfinite(lat)) || any(~isfinite(lon))
         error('distMatrix:InvalidCoordinates', ...
@@ -20,10 +24,15 @@ function D = distMatrix(lat, lon, roadDistanceFile, siteIds, localRoadGraphFile,
 
     metadataFile = [roadDistanceFile '.meta.mat'];
     if nargin >= 3 && ~isempty(roadDistanceFile) && exist(roadDistanceFile, 'file') ...
-            && exist(metadataFile, 'file') && ~isempty(siteIds)
-        cache = load(metadataFile, 'siteIds', 'lat', 'lon');
-        if isequal(string(cache.siteIds(:)), string(siteIds(:))) ...
-                && isequal(cache.lat(:), lat) && isequal(cache.lon(:), lon)
+            && exist(metadataFile, 'file') && ~isempty(siteNames)
+        cache = load(metadataFile);
+        hasMatchingNames = isfield(cache, 'siteNames') ...
+            && isequal(string(cache.siteNames(:)), string(siteNames(:)));
+        hasMatchingCoordinates = isfield(cache, 'lat') ...
+            && isfield(cache, 'lon') ...
+            && isequal(cache.lat(:), lat) ...
+            && isequal(cache.lon(:), lon);
+        if hasMatchingNames && hasMatchingCoordinates
             D = readmatrix(roadDistanceFile);
             if isequal(size(D), [n, n]) && all(isfinite(D(:))) && all(D(:) >= 0)
                 fprintf('Loaded cached local road distances for %d sites.\n', n);
@@ -37,23 +46,31 @@ function D = distMatrix(lat, lon, roadDistanceFile, siteIds, localRoadGraphFile,
             'Local road map not found: %s', localRoadGraphFile);
     end
 
-    D = localRoadGraphDistances(lat, lon, localRoadGraphFile, radiusKm);
+    D = localRoadGraphDistances(lat, lon, localRoadGraphFile, radiusKm, cacheDir);
     if nargin >= 3 && ~isempty(roadDistanceFile)
         outputFolder = fileparts(roadDistanceFile);
         if ~isempty(outputFolder) && ~exist(outputFolder, 'dir')
             mkdir(outputFolder);
         end
         writematrix(D, roadDistanceFile);
-        save(metadataFile, 'siteIds', 'lat', 'lon');
+        save(metadataFile, 'siteNames', 'lat', 'lon');
     end
     fprintf('Built local road graph and computed distances for %d sites.\n', n);
 end
 
-function D = localRoadGraphDistances(lat, lon, graphFile, radiusKm)
+function D = localRoadGraphDistances(lat, lon, graphFile, radiusKm, cacheDir)
     cacheKey = sprintf('%.4f_%.4f_%.4f_%.4f', ...
         min(lat), min(lon), max(lat), max(lon));
     cacheKey = [cacheKey sprintf('_r%.2f', radiusKm)];
-    graphCacheFile = [graphFile '.' cacheKey '.local_graph.mat'];
+    if isempty(cacheDir)
+        graphCacheFile = [graphFile '.' cacheKey '.local_graph.mat'];
+    else
+        graphCacheFolder = fullfile(cacheDir, 'road_graphs');
+        if ~exist(graphCacheFolder, 'dir')
+            mkdir(graphCacheFolder);
+        end
+        graphCacheFile = fullfile(graphCacheFolder, [cacheKey '.local_graph.mat']);
+    end
     if exist(graphCacheFile, 'file')
         cached = load(graphCacheFile, 'nodeLat', 'nodeLon', ...
             'edgeStart', 'edgeEnd', 'edgeDistanceKm', 'bbox');

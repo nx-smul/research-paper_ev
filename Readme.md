@@ -55,12 +55,11 @@ results/           Generated output files
 Each city CSV in `data/` must contain:
 
 ```text
-ID,Name,Lat,Lon,Type,Weight_Car,Weight_Bike,PopDensity,LandCost
+Name,Lat,Lon,Type,Weight_Car,Weight_Bike,PopDensity,LandCost
 ```
 
 | Column | Description |
 |---|---|
-| `ID` | Unique site identifier |
 | `Name` | Site name |
 | `Lat`, `Lon` | Coordinates in decimal degrees |
 | `Type` | Site category |
@@ -74,8 +73,8 @@ the same scale for every city.
 
 ### Dhaka candidate expansion
 
-The Dhaka dataset includes 22 additional candidate reference locations
-(IDs 31-52), increasing the candidate set from 30 to 52. Coordinates were
+The Dhaka dataset includes 22 additional candidate reference locations,
+increasing the candidate set from 30 to 52. Coordinates were
 researched from OpenStreetMap/Nominatim and Overpass references. The added
 `Weight_Car`, `Weight_Bike`, `PopDensity`, and `LandCost` values are
 transparent planning estimates on the same 1-10 scale as the original
@@ -172,16 +171,16 @@ See [geodata/maps/README.txt](geodata/maps/README.txt) for the expected local fi
 For a city named `<city>`, the program uses:
 
 ```text
-geodata/road_distances/<city>_road_distances.csv
+cache/road_distances/<city>_road_distances.csv
 ```
 
 Each locally computed distance matrix also has a metadata sidecar:
 
 ```text
-geodata/road_distances/<city>_road_distances.csv.meta.mat
+cache/road_distances/<city>_road_distances.csv.meta.mat
 ```
 
-The sidecar stores candidate IDs and coordinates. The cache is checked before
+The sidecar stores candidate names and coordinates. The cache is checked before
 the shapefile is opened and is reused only when those values still match the
 current city CSV, preventing an old matrix from being applied to reordered or
 changed candidate data.
@@ -189,7 +188,7 @@ changed candidate data.
 For Dhaka:
 
 ```text
-geodata/road_distances/dhaka_road_distances.csv
+cache/road_distances/dhaka_road_distances.csv
 ```
 
 The file must be an `n × n` distance matrix in kilometres, with rows and
@@ -205,13 +204,13 @@ columns in the same order as the city CSV.
 
 No online road search or straight-line fallback is used. If the local road
 shapefile is missing or disconnected, the program stops with a clear error.
-The clipped road overlay used in each city's PNG map is also cached under
-`results/<city>/local_roads_overlay.mat` so later runs do not reread the full
-shapefile. Optimization maps use the local road overlay rather than online
-street tiles to avoid basemap lag. The distance engine uses shortest paths
-through the clipped local road graph between the nearest road nodes; it does
-not sum arbitrary road segments.
-instead of silently changing the distance model.
+The clipped road overlay used in each city's PNG map is cached under
+`cache/map_overlays/<city>_local_roads_overlay.mat` so later runs do not
+reread the full shapefile. Processed road graphs are stored in
+`cache/road_graphs/`. Optimization maps use the local road overlay rather
+than online street tiles to avoid basemap lag. The distance engine uses
+shortest paths through the clipped local road graph between the nearest road
+nodes; it does not sum arbitrary road segments.
 
 ## Optimization method
 

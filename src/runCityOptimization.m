@@ -1,4 +1,5 @@
-function summary = runCityOptimization(dataFile, outDir, params, roadDistanceFile, costProfile, localRoadGraphFile)
+function summary = runCityOptimization(dataFile, outDir, params, roadDistanceFile, ...
+        costProfile, localRoadGraphFile, cacheDir, cityName)
 % RUNCITYOPTIMIZATION Runs the full EV charging siting pipeline for one city
 
     if nargin < 4
@@ -11,6 +12,12 @@ function summary = runCityOptimization(dataFile, outDir, params, roadDistanceFil
     if nargin < 6
         localRoadGraphFile = '';
     end
+    if nargin < 7
+        cacheDir = '';
+    end
+    if nargin < 8
+        [~, cityName] = fileparts(dataFile);
+    end
 
     if ~exist(outDir, 'dir'); mkdir(outDir); end
 
@@ -19,8 +26,8 @@ function summary = runCityOptimization(dataFile, outDir, params, roadDistanceFil
     data = assignChargerType(data, costProfile);
 
     %% 2. Distance matrix
-    D = distMatrix(data.Lat, data.Lon, roadDistanceFile, data.ID, ...
-        localRoadGraphFile, params.R);
+    D = distMatrix(data.Lat, data.Lon, roadDistanceFile, string(data.Name), ...
+        localRoadGraphFile, params.R, cacheDir);
 
     %% 3. Combine factors into one demand score
     h = computeDemand(data, params.w);
@@ -88,7 +95,7 @@ function summary = runCityOptimization(dataFile, outDir, params, roadDistanceFil
     fprintf('\nSaved: %s\n', txtFile);
 
     %% 5. Plot map
-    plotMap(data, idx, params.R, outDir, true, localRoadGraphFile);
+    plotMap(data, idx, params.R, outDir, true, localRoadGraphFile, cacheDir, cityName);
     drawnow;
 
     %% 6. Save results CSV (now includes charger type + adjusted cost)

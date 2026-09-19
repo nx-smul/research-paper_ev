@@ -1,53 +1,43 @@
-ID,Name,Lat,Lon,Type,Weight_Car,Weight_Bike,PopDensity,LandCost
-1,Farmgate,23.7561,90.3872,Intersection,7,9,7,3
-2,Bashundhara City Mall,23.7511,90.3906,Mall,9,6,6,4
-3,Jamuna Future Park,23.8111,90.4247,Mall,9,6,5,3
-4,Centrepoint Uttara,23.8525,90.4062,Mall,8,6,5,1
-5,Gulshan-1 Circle,23.7809,90.4160,Commercial,9,4,4,8
-6,Gulshan-2 Circle,23.7925,90.4155,Commercial,9,4,4,8
-7,Mirpur-10 Circle,23.8065,90.3686,Intersection,5,9,10,2
-8,Jatrabari Intersection,23.7104,90.4331,Intersection,4,9,9,1
-9,Dhaka University (TSC),23.7322,90.3944,University,4,9,6,4
-10,BUET,23.7267,90.3927,University,4,8,6,4
-11,North South University,23.8153,90.4256,University,7,6,5,3
-12,Uttara Sector 7 Junction,23.8709,90.3993,Residential,6,6,5,1
-13,Motijheel Commercial Area,23.7331,90.4172,Commercial,9,6,8,10
-14,Mohakhali Bus Terminal,23.7789,90.4048,TransportHub,5,9,7,3
-15,Dhanmondi 27 (Rifles Square),23.7461,90.3742,Commercial,7,6,6,6
-16,Kawran Bazar,23.7509,90.3927,Commercial,7,8,8,5
-17,Panthapath Intersection,23.7508,90.3874,Intersection,7,7,7,5
-18,Shahbagh Intersection,23.7383,90.3958,Intersection,6,8,6,4
-19,Banani Junction,23.7936,90.4043,Commercial,9,4,5,7
-20,Baridhara DOHS,23.8017,90.4225,Residential,8,3,3,7
-21,Square Hospital,23.7509,90.3831,Hospital,7,4,6,5
-22,United Hospital Gulshan,23.7943,90.4147,Hospital,8,4,4,7
-23,Dhaka Medical College Hospital,23.7256,90.3971,Hospital,4,8,9,4
-24,Evercare Hospital Bashundhara,23.7935,90.4288,Hospital,8,4,5,3
-25,Hazrat Shahjalal Intl Airport Area,23.8433,90.3978,TransportHub,8,5,3,2
-26,Sayedabad Bus Terminal,23.7233,90.4267,TransportHub,4,9,9,1
-27,Gabtoli Bus Terminal,23.7797,90.3486,TransportHub,4,9,8,1
-28,Kamalapur Railway Station,23.7332,90.4264,TransportHub,5,9,8,3
-29,Mohammadpur Town Hall,23.7628,90.3589,Commercial,6,7,7,2
-30,Rampura Bridge Intersection,23.7597,90.4258,Intersection,6,7,7,3
-31,Uttara North Metro Station,23.8693050,90.3675463,TransportHub,7,9,6,2
-32,Uttara Center Metro Station,23.8597545,90.3652035,TransportHub,7,9,6,2
-33,Agargaon Metro Station,23.7780468,90.3802662,TransportHub,6,9,8,3
-34,Mirpur 12,23.8251043,90.3706719,Commercial,6,9,9,2
-35,Kazipara Metro Station,23.7992224,90.3719446,TransportHub,6,9,9,2
-36,Shewrapara Metro Station,23.7909484,90.3754461,TransportHub,6,9,9,2
-37,Uttara House Building Bus Stop,23.8742893,90.4004176,TransportHub,7,9,6,3
-38,Dhaka Airport Railway Station,23.8520709,90.4083790,TransportHub,8,9,5,3
-39,Kuril Flyover,23.8255255,90.4239133,Intersection,8,9,6,4
-40,Badda Link Road Merul Badda,23.7703817,90.4228747,TransportHub,7,9,8,5
-41,Kakrail,23.7385398,90.4071475,Commercial,8,8,8,7
-42,Police Plaza Concord,23.7729110,90.4161391,Mall,8,6,5,8
-43,Rapa Plaza,23.7559813,90.3751526,Mall,7,6,7,5
-44,Shimanto Square,23.7380502,90.3772719,Mall,7,6,7,6
-45,Dhaka New Market,23.7332249,90.3838478,Commercial,6,8,9,7
-46,BSMMU,23.7383317,90.3950220,Hospital,6,7,8,6
-47,National Institute of Neurosciences Hospital,23.7761045,90.3709144,Hospital,5,7,8,3
-48,National Heart Foundation Heart Hospital,23.7885153,90.3536692,Hospital,5,7,8,3
-49,BRAC University,23.7733146,90.4243710,University,8,6,7,7
-50,AIUB Campus 2,23.7947055,90.4023903,University,8,6,6,6
-51,East West University,23.7686226,90.4256065,University,7,7,8,5
-52,Stamford University Bangladesh,23.7508763,90.4030639,University,6,7,8,6
+"Name","Lat","Lon","Type","Weight_Car","Weight_Bike","PopDensity","LandCost"
+"Farmgate","23.7561","90.3872","Intersection","7","9","7","3"
+"Bashundhara City Mall","23.7511","90.3906","Mall","9","6","6","4"
+"Jamuna Future Park","23.8111","90.4247","Mall","9","6","5","3"
+"Centrepoint Uttara","23.8525","90.4062","Mall","8","6","5","1"
+"Gulshan-1 Circle","23.7809","90.4160","Commercial","9","4","4","8"
+"Gulshan-2 Circle","23.7925","90.4155","Commercial","9","4","4","8"
+"Mirpur-10 Circle","23.8065","90.3686","Intersection","5","9","10","2"
+"Jatrabari Intersection","23.7104","90.4331","Intersection","4","9","9","1"
+"Dhaka University (TSC)","23.7322","90.3944","University","4","9","6","4"
+"BUET","23.7267","90.3927","University","4","8","6","4"
+"North South University","23.8153","90.4256","University","7","6","5","3"
+"Uttara Sector 7 Junction","23.8709","90.3993","Residential","6","6","5","1"
+"Motijheel Commercial Area","23.7331","90.4172","Commercial","9","6","8","10"
+"Mohakhali Bus Terminal","23.7789","90.4048","TransportHub","5","9","7","3"
+"Dhanmondi 27 (Rifles Square)","23.7461","90.3742","Commercial","7","6","6","6"
+"Kawran Bazar","23.7509","90.3927","Commercial","7","8","8","5"
+"Panthapath Intersection","23.7508","90.3874","Intersection","7","7","7","5"
+"Shahbagh Intersection","23.7383","90.3958","Intersection","6","8","6","4"
+"Banani Junction","23.7936","90.4043","Commercial","9","4","5","7"
+"Baridhara DOHS","23.8017","90.4225","Residential","8","3","3","7"
+"United Hospital Gulshan","23.7943","90.4147","Hospital","8","4","4","7"
+"Dhaka Medical College Hospital","23.7256","90.3971","Hospital","4","8","9","4"
+"Hazrat Shahjalal Intl Airport Area","23.8433","90.3978","TransportHub","8","5","3","2"
+"Sayedabad Bus Terminal","23.7233","90.4267","TransportHub","4","9","9","1"
+"Gabtoli Bus Terminal","23.7797","90.3486","TransportHub","4","9","8","1"
+"Kamalapur Railway Station","23.7332","90.4264","TransportHub","5","9","8","3"
+"Mohammadpur Town Hall","23.7628","90.3589","Commercial","6","7","7","2"
+"Rampura Bridge Intersection","23.7597","90.4258","Intersection","6","7","7","3"
+"Uttara North Metro Station","23.8693050","90.3675463","TransportHub","7","9","6","2"
+"Uttara Center Metro Station","23.8597545","90.3652035","TransportHub","7","9","6","2"
+"Agargaon Metro Station","23.7780468","90.3802662","TransportHub","6","9","8","3"
+"Mirpur 12","23.8251043","90.3706719","Commercial","6","9","9","2"
+"Kazipara Metro Station","23.7992224","90.3719446","TransportHub","6","9","9","2"
+"Shewrapara Metro Station","23.7909484","90.3754461","TransportHub","6","9","9","2"
+"Uttara House Building Bus Stop","23.8742893","90.4004176","TransportHub","7","9","6","3"
+"Kuril Flyover","23.8255255","90.4239133","Intersection","8","9","6","4"
+"Badda Link Road Merul Badda","23.7703817","90.4228747","TransportHub","7","9","8","5"
+"Kakrail","23.7385398","90.4071475","Commercial","8","8","8","7"
+"Police Plaza Concord","23.7729110","90.4161391","Mall","8","6","5","8"
+"Shimanto Square","23.7380502","90.3772719","Mall","7","6","7","6"
+"Dhaka New Market","23.7332249","90.3838478","Commercial","6","8","9","7"
+"Stamford University Bangladesh","23.7508763","90.4030639","University","6","7","8","6"

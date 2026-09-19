@@ -1,9 +1,3 @@
 /results/
-/geodata/road_distances/
-/geodata/maps/*.shp
-/geodata/maps/*.dbf
-/geodata/maps/*.shx
-/geodata/maps/*.sbn
-/geodata/maps/*.sbx
-/geodata/maps/*.xml
-/geodata/maps/*.local_graph.mat
+/cache/
+/geodata/maps/

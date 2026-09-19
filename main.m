@@ -8,7 +8,8 @@ root = fileparts(mfilename('fullpath'));
 addpath(fullfile(root, 'src'));
 dataDir      = fullfile(root, 'data');
 geodataDir   = fullfile(root, 'geodata');
-distanceDir  = fullfile(geodataDir, 'road_distances');
+cacheDir     = fullfile(root, 'cache');
+distanceDir  = fullfile(cacheDir, 'road_distances');
 mapsDir      = fullfile(geodataDir, 'maps');
 resultsDir   = fullfile(root, 'results');
 settingsFile = fullfile(root, 'settings.csv');
@@ -66,7 +67,7 @@ for i = 1:length(csvFiles)
 
     citySummary = runCityOptimization( ...
         dataFile, outDir, params, roadDistanceFile, costProfile, ...
-        localRoadGraphFile);
+        localRoadGraphFile, cacheDir, cityName);
     if isempty(summaryRows)
         summaryRows = citySummary;
     else
