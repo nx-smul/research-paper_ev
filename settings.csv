@@ -1,2 +1,2 @@
-CityFile,R,p,budget,w_car,w_bike,w_pop,w_cost
-dhaka,5,8,500,0.25,0.20,0.40,0.25
+CityFile,R,p,budget,w_car,w_bike,w_pop,w_cost,min_fast
+dhaka,15,6,1000,0.25,0.20,0.40,0.25,2

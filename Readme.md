@@ -97,8 +97,8 @@ access, and actual demand before treating the estimates as investment data.
 `settings.csv` controls each city:
 
 ```csv
-CityFile,R,p,budget,w_car,w_bike,w_pop,w_cost
-dhaka,5,6,500,0.25,0.20,0.40,0.25
+CityFile,R,p,budget,w_car,w_bike,w_pop,w_cost,min_fast
+dhaka,10,5,500,0.25,0.20,0.40,0.25,2
 ```
 
 | Column | Description |
@@ -111,6 +111,7 @@ dhaka,5,6,500,0.25,0.20,0.40,0.25
 | `w_bike` | Motorcycle-demand weight |
 | `w_pop` | Population-density weight |
 | `w_cost` | Land-cost penalty weight |
+| `min_fast` | Minimum number of DC Fast sites when feasible |
 
 If a city is not listed, `main.m` uses its default parameters.
 

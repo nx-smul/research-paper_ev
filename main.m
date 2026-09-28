@@ -42,6 +42,10 @@ end
 %% Find all candidate CSV files in data/ (excluding settings.csv)
 csvFiles = dir(fullfile(dataDir, '*.csv'));
 csvFiles = csvFiles(~strcmpi({csvFiles.name}, 'settings.csv'));
+if ~isempty(csvFiles)
+    [~, order] = sort(lower({csvFiles.name}));
+    csvFiles = csvFiles(order);
+end
 
 if isempty(csvFiles)
     error('No candidate CSV files found in %s.', dataDir);
@@ -62,6 +66,8 @@ for i = 1:length(csvFiles)
     roadDistanceFile = fullfile(distanceDir, [cityName '_road_distances.csv']);
 
     params = getCityParams(settings, cityName, defaultParams);
+    candidateCount = height(readtable(dataFile, 'ReadVariableNames', true));
+    params = validateParams(params, cityName, csvFiles(i).name, candidateCount);
 
     fprintf('\n========== Processing: %s ==========\n', cityName);
     fprintf('R=%g km | p=%d | budget=%s\n', params.R, params.p, budgetLabel(params.budget));
@@ -87,20 +93,29 @@ fprintf('\nAll cities processed. Results saved under: %s\n', resultsDir);
 %% ---- Local helper functions ----
 function params = getCityParams(settings, cityName, defaultParams)
     params = defaultParams;
-    if isempty(settings) || ~any(strcmpi(settings.CityFile, cityName))
+    if isempty(settings) || ~ismember('CityFile', settings.Properties.VariableNames)
         return;
     end
-    row = settings(strcmpi(settings.CityFile, cityName), :);
-    params.R      = row.R;
-    params.p      = row.p;
-    params.budget = parseBudget(row.budget);
-    params.w.car  = row.w_car;
-    params.w.bike = row.w_bike;
-    params.w.pop  = row.w_pop;
-    params.w.cost = row.w_cost;
-    if ismember("min_fast", string(row.Properties.VariableNames))
-        params.minFast = row.min_fast;
+
+    cityFiles = string(settings.CityFile);
+    matches = find(strcmpi(strtrim(cityFiles), cityName));
+    if isempty(matches)
+        return;
     end
+    if numel(matches) > 1
+        warning('main:DuplicateCitySettings', ...
+            'Multiple settings rows match "%s"; using the first row.', cityName);
+    end
+
+    row = settings(matches(1), :);
+    params.R      = scalarSetting(row, 'R', params.R);
+    params.p      = scalarSetting(row, 'p', params.p);
+    params.budget = parseBudget(scalarSetting(row, 'budget', params.budget));
+    params.w.car  = scalarSetting(row, 'w_car', params.w.car);
+    params.w.bike = scalarSetting(row, 'w_bike', params.w.bike);
+    params.w.pop  = scalarSetting(row, 'w_pop', params.w.pop);
+    params.w.cost = scalarSetting(row, 'w_cost', params.w.cost);
+    params.minFast = scalarSetting(row, 'min_fast', params.minFast);
 end
 
 function b = parseBudget(val)
@@ -117,4 +132,68 @@ function s = budgetLabel(v)
     else
         s = sprintf('%g', v);
     end
+end
+
+function value = scalarSetting(row, name, defaultValue)
+    if ~ismember(name, row.Properties.VariableNames)
+        value = defaultValue;
+        return;
+    end
+
+    rawValue = row.(name);
+    if iscell(rawValue)
+        rawValue = rawValue{1};
+    end
+    if isstring(rawValue) || ischar(rawValue) || iscategorical(rawValue)
+        value = str2double(string(rawValue));
+    else
+        value = rawValue(1);
+    end
+    if isempty(value)
+        value = defaultValue;
+    end
+end
+
+function params = validateParams(params, cityName, filename, candidateCount)
+    numericFields = [params.R, params.p, params.budget, params.minFast, ...
+        params.w.car, params.w.bike, params.w.pop, params.w.cost];
+    if any(~isfinite(numericFields(~isinf(numericFields))))
+        error('main:InvalidParameters', ...
+            'Non-finite parameters found for %s (%s).', cityName, filename);
+    end
+    if ~isscalar(params.R) || params.R <= 0
+        error('main:InvalidRadius', ...
+            'Service radius for %s must be a positive scalar.', cityName);
+    end
+    if ~isscalar(params.budget) || params.budget < 0
+        error('main:InvalidBudget', ...
+            'Budget for %s must be nonnegative or Inf.', cityName);
+    end
+
+    weights = [params.w.car, params.w.bike, params.w.pop, params.w.cost];
+    if any(~isfinite(weights)) || any(weights < 0) || sum(weights) <= 0
+        error('main:InvalidWeights', ...
+            'Demand weights for %s must be finite, nonnegative, and nonzero.', cityName);
+    end
+    weights = weights / sum(weights);
+    [params.w.car, params.w.bike, params.w.pop, params.w.cost] = deal(weights(1), ...
+        weights(2), weights(3), weights(4));
+
+    params.p = round(params.p);
+    if params.p < 1
+        error('main:InvalidStationLimit', ...
+            'Station limit p for %s must be at least 1.', cityName);
+    end
+    if params.p > candidateCount
+        warning('main:StationLimitClamped', ...
+            'Station limit p=%d exceeds %d candidates for %s; clamping to %d.', ...
+            params.p, candidateCount, cityName, candidateCount);
+        params.p = candidateCount;
+    end
+    params.minFast = round(params.minFast);
+    if params.minFast < 0
+        error('main:InvalidMinimumFast', ...
+            'min_fast for %s cannot be negative.', cityName);
+    end
+    params.minFast = min(params.minFast, params.p);
 end
