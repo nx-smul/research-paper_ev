@@ -42,6 +42,23 @@ function summary = runCityOptimization(dataFile, outDir, params, roadDistanceFil
         costOptions, allowedOptions, params.budget, ["Level 2", "DC Fast"], ...
         [0, min(params.minFast, params.p)]);
 
+    %% 4b. Naive baseline: the p highest-demand sites, ignoring distance
+    [~, demandOrder] = sort(h, 'descend');
+    baselineIdx = demandOrder(1:min(params.p, numel(h)));
+    uBase = min(1, sum(W(:, baselineIdx), 2));
+    baselineCovered = 100 * sum(h .* uBase) / sum(h);
+    fprintf('Baseline (top-%d sites by demand score): %.1f%% of demand covered\n', ...
+        numel(baselineIdx), baselineCovered);
+
+    %% 4c. Spacing check: how close are the two nearest selected stations?
+    if numel(idx) > 1
+        Dsel = D(idx, idx);
+        Dsel(logical(eye(numel(idx)))) = Inf;
+        closestPairKm = min(Dsel(:));
+    else
+        closestPairKm = NaN;
+    end
+
     %% Build selected-stations table
     selected = data(idx, {'Name','Lat','Lon','Type','Weight_Car','Weight_Bike', ...
         'PopDensity','LandCost'});
@@ -108,6 +125,9 @@ function summary = runCityOptimization(dataFile, outDir, params, roadDistanceFil
     fprintf(fid, '\nDemand Covered: %.1f%%\n', 100*sum(h.*u)/sum(h));
     fprintf(fid, 'Adjusted Budget Used: %.1f out of %s\n', sum(selected.AdjustedCost), budgetLabel(params.budget));
     fprintf(fid, 'Original Land Cost: %.1f\n', sum(selected.LandCost));
+    fprintf(fid, 'Baseline (top-%d sites by demand score): %.1f%% covered\n', ...
+        numel(baselineIdx), baselineCovered);
+    fprintf(fid, 'Closest pair of selected stations: %.2f km (road distance)\n', closestPairKm);
     fprintf(fid, 'Adjusted Cost (charger-type aware): %.1f\n\n', sum(selected.AdjustedCost));
     for i = 1:length(hints)
         fprintf(fid, '%s\n', hints(i));
@@ -123,36 +143,46 @@ function summary = runCityOptimization(dataFile, outDir, params, roadDistanceFil
     writetable(selected, fullfile(outDir, 'selected_stations.csv'));
     fprintf('Saved: %s\n', fullfile(outDir, 'selected_stations.csv'));
 
-    %% 7a. How coverage changes as you add more stations
-    fprintf('\n>> Testing how coverage improves as more stations are added...\n');
+    %% 7. Sensitivity analysis (same joint site + charger-type model as the main run)
     nCandidates = height(data);
+    fprintf('\n>> Testing how coverage improves as more stations are added...\n');
     pRange = unique([1:min(15, nCandidates), min(max(1, params.p), nCandidates)]);
     covP = zeros(size(pRange));
     for k = 1:length(pRange)
-        [~, ~, uk] = mclp(W, h, pRange(k), data.AdjustedCost, Inf);
-        covP(k) = 100 * sum(h.*uk) / sum(h);
+        covP(k) = jointCoverage(W, h, pRange(k), data, params.budget, params.minFast);
     end
-    %% 7b. How coverage changes with budget
+
     fprintf('\n>> Testing how coverage improves as budget increases...\n');
-    maxBudget = sum(data.AdjustedCost);
-    budgetRange = linspace(0, maxBudget, 10);
+    if isfinite(params.budget)
+        budgetRange = unique([linspace(0.25 * params.budget, 2 * params.budget, 10), params.budget]);
+    else
+        budgetRange = linspace(0, sum(data.AdjustedCost), 10);
+    end
     covBudget = zeros(size(budgetRange));
     for k = 1:length(budgetRange)
-        [~, ~, uk] = mclp(W, h, params.p, data.AdjustedCost, budgetRange(k));
-        covBudget(k) = 100 * sum(h.*uk) / sum(h);
+        covBudget(k) = jointCoverage(W, h, params.p, data, budgetRange(k), params.minFast);
     end
-    %% 7c. How coverage changes with service radius
+
     fprintf('\n>> Testing how coverage changes with a bigger service radius...\n');
     maxDistance = max(D(:));
     radiusUpperBound = max(params.R * 2, min(maxDistance, params.R * 4));
-    Rrange = unique(linspace(max(0.5, params.R / 2), ...
-        max(params.R, radiusUpperBound), 10));
+    Rrange = unique([linspace(max(0.5, params.R / 2), max(params.R, radiusUpperBound), 10), params.R]);
     covR = zeros(size(Rrange));
     for k = 1:length(Rrange)
         Wk = coverageWeights(D, Rrange(k));
-        [~, ~, uk] = mclp(Wk, h, params.p, data.AdjustedCost, params.budget);
-        covR(k) = 100 * sum(h.*uk) / sum(h);
+        covR(k) = jointCoverage(Wk, h, params.p, data, params.budget, params.minFast);
     end
+
+    % Save the sensitivity numbers so they can be quoted in the paper/slides
+    sens = [ ...
+        table(repmat("StationLimit", numel(pRange), 1), pRange(:), covP(:), ...
+            'VariableNames', {'Study', 'Value', 'CoveredPercent'}); ...
+        table(repmat("Budget", numel(budgetRange), 1), budgetRange(:), covBudget(:), ...
+            'VariableNames', {'Study', 'Value', 'CoveredPercent'}); ...
+        table(repmat("RadiusKm", numel(Rrange), 1), Rrange(:), covR(:), ...
+            'VariableNames', {'Study', 'Value', 'CoveredPercent'})];
+    writetable(sens, fullfile(outDir, 'sensitivity_results.csv'));
+    fprintf('Saved: %s\n', fullfile(outDir, 'sensitivity_results.csv'));
     plotCombinedSensitivity(pRange, covP, budgetRange, covBudget, ...
         Rrange, covR, cityName, fullfile(outDir, 'sensitivity_combined.png'));
 
@@ -183,7 +213,9 @@ function summary = runCityOptimization(dataFile, outDir, params, roadDistanceFil
         'DemandCoveredPercent', 100 * sum(h .* u) / sum(h), ...
         'LandCostUsed', sum(selected.LandCost), ...
         'Level2Stations', sum(selected.ChargerType == "Level 2"), ...
-        'DCFastStations', sum(selected.ChargerType == "DC Fast"));
+        'DCFastStations', sum(selected.ChargerType == "DC Fast"), ...
+        'BaselineCoveredPercent', baselineCovered, ...
+        'ClosestPairKm', closestPairKm);
 end
 
 function s = budgetLabel(b)
@@ -227,4 +259,21 @@ function plotCombinedSensitivity(pVals, covP, budgetVals, covBudget, ...
     exportgraphics(gcf, outFile, 'Resolution', 150);
     fprintf('Saved: %s\n', outFile);
     drawnow;
+end
+
+function cov = jointCoverage(W, h, p, data, budget, minFast)
+% JOINTCOVERAGE Percent of demand covered by the joint site + charger-type
+% model, so sensitivity curves match the main result. Returns NaN if the
+% budget/limits are infeasible.
+    try
+        Wt = cat(3, W, W);
+        costOptions = [data.Level2AdjustedCost, data.DCFastAdjustedCost];
+        allowed = [data.Level2Eligible, data.DCFastEligible];
+        [~, ~, ~, uk] = mclpWithChargerTypes(Wt, h, p, costOptions, allowed, ...
+            budget, ["Level 2", "DC Fast"], [0, min(minFast, p)]);
+        cov = 100 * sum(h .* uk) / sum(h);
+    catch ME
+        warning('runCityOptimization:SensitivityInfeasible', '%s', ME.message);
+        cov = NaN;
+    end
 end
