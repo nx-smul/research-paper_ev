@@ -190,10 +190,11 @@ Each locally computed distance matrix also has a metadata sidecar:
 cache/road_distances/<city>_road_distances.csv.meta.mat
 ```
 
-The sidecar stores candidate names and coordinates. The cache is checked before
-the shapefile is opened and is reused only when those values still match the
-current city CSV, preventing an old matrix from being applied to reordered or
-changed candidate data.
+The sidecar stores candidate names, coordinates, and a signature of the full
+city CSV data. If the CSV changes, the cache metadata and matrix are refreshed.
+When every current site already has matching cached coordinates, pairwise
+distances are safely reused and reordered/subsetted; adding a site or changing
+its coordinates forces the road distances to be recomputed from the shapefile.
 
 For Dhaka:
 

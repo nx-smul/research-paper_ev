@@ -23,11 +23,12 @@ function summary = runCityOptimization(dataFile, outDir, params, roadDistanceFil
 
     %% 1. Load data
     data = loadData(dataFile);
+    inputSignature = jsonencode(table2struct(data));
     data = assignChargerType(data, costProfile);
 
     %% 2. Distance matrix
     D = distMatrix(data.Lat, data.Lon, roadDistanceFile, string(data.Name), ...
-        localRoadGraphFile, params.R, cacheDir);
+        localRoadGraphFile, params.R, cacheDir, inputSignature);
 
     %% 3. Combine factors into one demand score
     h = computeDemand(data, params.w);

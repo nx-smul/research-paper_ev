@@ -1,5 +1,5 @@
 function D = distMatrix(lat, lon, roadDistanceFile, siteNames, localRoadGraphFile, ...
-        radiusKm, cacheDir)
+        radiusKm, cacheDir, inputSignature)
 % DISTMATRIX Computes local road distances from a MATLAB road shapefile.
 
     lat = lat(:);
@@ -17,6 +17,9 @@ function D = distMatrix(lat, lon, roadDistanceFile, siteNames, localRoadGraphFil
     if nargin < 7
         cacheDir = '';
     end
+    if nargin < 8
+        inputSignature = '';
+    end
     if n ~= numel(lon) || any(~isfinite(lat)) || any(~isfinite(lon))
         error('distMatrix:InvalidCoordinates', ...
             'Latitude and longitude must be finite vectors of equal length.');
@@ -26,17 +29,47 @@ function D = distMatrix(lat, lon, roadDistanceFile, siteNames, localRoadGraphFil
     if nargin >= 3 && ~isempty(roadDistanceFile) && exist(roadDistanceFile, 'file') ...
             && exist(metadataFile, 'file') && ~isempty(siteNames)
         cache = load(metadataFile);
-        hasMatchingNames = isfield(cache, 'siteNames') ...
-            && isequal(string(cache.siteNames(:)), string(siteNames(:)));
-        hasMatchingCoordinates = isfield(cache, 'lat') ...
-            && isfield(cache, 'lon') ...
-            && isequal(cache.lat(:), lat) ...
-            && isequal(cache.lon(:), lon);
-        if hasMatchingNames && hasMatchingCoordinates
-            D = readmatrix(roadDistanceFile);
-            if isequal(size(D), [n, n]) && all(isfinite(D(:))) && all(D(:) >= 0)
-                fprintf('Loaded cached local road distances for %d sites.\n', n);
-                return;
+        if isfield(cache, 'siteNames') && isfield(cache, 'lat') && isfield(cache, 'lon')
+            cachedNames = string(cache.siteNames(:));
+            cachedLat = cache.lat(:);
+            cachedLon = cache.lon(:);
+            if numel(cachedNames) == numel(cachedLat) ...
+                    && numel(cachedNames) == numel(cachedLon)
+                cacheIndices = zeros(n, 1);
+                for siteIndex = 1:n
+                    matches = find(cachedNames == string(siteNames(siteIndex)) ...
+                        & cachedLat == lat(siteIndex) & cachedLon == lon(siteIndex));
+                    if numel(matches) ~= 1
+                        cacheIndices = [];
+                        break;
+                    end
+                    cacheIndices(siteIndex) = matches;
+                end
+                if numel(cacheIndices) == n && numel(unique(cacheIndices)) == n
+                    cachedDistances = readmatrix(roadDistanceFile);
+                    cachedCount = numel(cachedNames);
+                    if isequal(size(cachedDistances), [cachedCount, cachedCount]) ...
+                            && all(isfinite(cachedDistances(:))) ...
+                            && all(cachedDistances(:) >= 0)
+                        D = cachedDistances(cacheIndices, cacheIndices);
+                        hasMatchingSignature = isempty(inputSignature) ...
+                            || (isfield(cache, 'inputSignature') ...
+                            && isequal(string(cache.inputSignature), string(inputSignature)));
+                        if cachedCount ~= n || ~isequal(cacheIndices, (1:n)') ...
+                                || ~hasMatchingSignature
+                            % Pairwise road distances do not depend on other
+                            % candidate fields, so refresh its matrix and
+                            % metadata for the current input.
+                            writematrix(D, roadDistanceFile);
+                            siteNames = string(siteNames(:));
+                            save(metadataFile, 'siteNames', 'lat', 'lon', 'inputSignature');
+                            fprintf('Refreshed cached local road distances for changed input data (%d sites).\n', n);
+                        else
+                            fprintf('Loaded cached local road distances for %d sites.\n', n);
+                        end
+                        return;
+                    end
+                end
             end
         end
     end
@@ -53,7 +86,8 @@ function D = distMatrix(lat, lon, roadDistanceFile, siteNames, localRoadGraphFil
             mkdir(outputFolder);
         end
         writematrix(D, roadDistanceFile);
-        save(metadataFile, 'siteNames', 'lat', 'lon');
+        siteNames = string(siteNames(:));
+        save(metadataFile, 'siteNames', 'lat', 'lon', 'inputSignature');
     end
     fprintf('Built local road graph and computed distances for %d sites.\n', n);
 end
